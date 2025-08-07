@@ -132,7 +132,8 @@ studentSchema.pre('save', function(next) {
 studentSchema.methods.assignSpecialIdForFeeVoucher = function(rollNumber) {
   if (!this.specialStudentId) {
     this.rollNumber = rollNumber;
-    this.specialStudentId = generateSpecialStudentId(this.fullname, this.class, rollNumber);
+    // Use existing studentId and just append rollNumber
+    this.specialStudentId = `${this.studentId}-${rollNumber}`;
   }
   return this.specialStudentId;
 };

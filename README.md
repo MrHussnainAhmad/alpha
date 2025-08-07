@@ -68,10 +68,50 @@ A comprehensive backend API for a mobile school application supporting three use
 - **POST** `/submit-fee-voucher` - Submit fee voucher with image
 - **GET** `/fee-voucher-status/:studentId` - Check fee voucher status
 
+### Announcement Routes (`/api/announcements`)
+
+#### Admin Functions
+- **POST** `/create` - Create announcement (Admin only)
+- **GET** `/admin/all` - Get all announcements with filters (Admin only)
+- **PUT** `/:id` - Update announcement (Admin only)
+- **DELETE** `/:id` - Delete announcement (Admin only)
+- **GET** `/admin/stats` - Get announcement statistics (Admin only)
+
+#### Teacher Functions
+- **POST** `/teacher/create` - Create announcement (Teacher only - can target students or specific class)
+- **GET** `/teacher/my-announcements` - Get teacher's own announcements
+- **PUT** `/teacher/:id` - Update teacher's own announcement
+- **DELETE** `/teacher/:id` - Delete teacher's own announcement
+
+#### User Functions
+- **GET** `/teacher` - Get announcements for teachers
+- **GET** `/student` - Get announcements for students (includes class-specific)
+- **GET** `/:id` - Get single announcement details
+- **POST** `/:id/read` - Mark announcement as read
+
+### Marks/Grades Routes (`/api/marks`)
+
+#### Admin/Teacher Functions
+- **POST** `/add` - Add marks for a student (Admin/Teacher only)
+- **PUT** `/:id` - Update marks record (Admin/Teacher only)
+- **DELETE** `/:id` - Delete marks record (Admin/Teacher only)
+- **GET** `/class/:class/:section` - Get class performance (Admin/Teacher only)
+
+#### Teacher Functions
+- **GET** `/teacher/my-records` - Get marks added by teacher (Teacher only)
+
+#### Admin Functions
+- **GET** `/admin/all` - Get all marks records with filters (Admin only)
+- **GET** `/admin/stats` - Get marks statistics (Admin only)
+
+#### Student Functions
+- **GET** `/student/:studentIdString` - Get student's academic record
+
 ### File Upload Routes
 
 - **POST** `/api/upload-profile` - Upload profile image
 - **POST** `/api/upload-voucher` - Upload fee voucher image
+- **POST** `/api/upload-announcement-images` - Upload announcement images (up to 5)
 
 ## Data Models
 
@@ -129,6 +169,62 @@ A comprehensive backend API for a mobile school application supporting three use
   feeVoucherImage: String (Cloudinary URL),
   isActive: Boolean (default: true),
   role: String (default: "student")
+}
+```
+
+### Announcement Model
+```javascript
+{
+  title: String (required),
+  message: String (required),
+  images: [String] (array of Cloudinary URLs),
+  targetType: String (required, enum: ['all', 'teachers', 'students', 'class']),
+  targetClass: String (required if targetType is 'class'),
+  targetSection: String (optional for class-specific),
+  createdBy: ObjectId (reference to Admin or Teacher),
+  createdByType: String (enum: ['Admin', 'Teacher']),
+  createdByName: String (required),
+  isActive: Boolean (default: true),
+  priority: String (enum: ['low', 'medium', 'high', 'urgent']),
+  expiresAt: Date (optional),
+  readBy: [{
+    userId: ObjectId,
+    userType: String (enum: ['teacher', 'student']),
+    readAt: Date
+  }]
+}
+```
+
+### Marks Model
+```javascript
+{
+  studentId: ObjectId (reference to Student),
+  studentIdString: String (required, e.g., "S-ahmedali-10A"),
+  studentName: String (required),
+  class: String (required),
+  section: String (required),
+  examType: String (required, enum: ['midterm', 'final', 'quiz', 'assignment', 'test', 'monthly', 'weekly']),
+  examDate: Date (required),
+  subjects: [{
+    subjectName: String (required),
+    marksObtained: Number (required),
+    totalMarks: Number (required),
+    percentage: Number (auto-calculated),
+    grade: String (auto-calculated: A+, A, B+, B, C+, C, D+, D, F),
+    remarks: String
+  }],
+  totalMarksObtained: Number (auto-calculated),
+  totalMarksMax: Number (auto-calculated),
+  overallPercentage: Number (auto-calculated),
+  overallGrade: String (auto-calculated),
+  position: Number (class position),
+  addedBy: ObjectId (reference to Admin or Teacher),
+  addedByType: String (enum: ['Admin', 'Teacher']),
+  addedByName: String (required),
+  academicYear: String (required, e.g., "2023-2024"),
+  semester: String (enum: ['1st', '2nd', '3rd', '4th']),
+  isActive: Boolean (default: true),
+  remarks: String
 }
 ```
 
@@ -192,6 +288,132 @@ POST /api/student/submit-fee-voucher
   "rollNumber": "15"
 }
 // Auto-generates specialStudentId: "S-ahmedali-10A-15"
+```
+
+### Creating Announcements (Admin)
+
+#### Announcement to All Users
+```javascript
+POST /api/announcements/create
+{
+  "title": "School Holiday Notice",
+  "message": "School will remain closed tomorrow due to weather conditions.",
+  "images": ["https://cloudinary.com/image1.jpg"],
+  "targetType": "all",
+  "priority": "high"
+}
+```
+
+#### Announcement to Teachers Only
+```javascript
+POST /api/announcements/create
+{
+  "title": "Staff Meeting",
+  "message": "Monthly staff meeting tomorrow at 2 PM in conference room.",
+  "targetType": "teachers",
+  "priority": "medium"
+}
+```
+
+#### Announcement to Students Only
+```javascript
+POST /api/announcements/create
+{
+  "title": "Sports Day",
+  "message": "Annual sports day will be held next Friday. All students must participate.",
+  "images": ["https://cloudinary.com/sports1.jpg", "https://cloudinary.com/sports2.jpg"],
+  "targetType": "students",
+  "priority": "medium"
+}
+```
+
+#### Announcement to Specific Class
+```javascript
+POST /api/announcements/create
+{
+  "title": "Class 10A Exam Schedule",
+  "message": "Final exams for Class 10A will start from Monday. Please check the detailed schedule.",
+  "images": ["https://cloudinary.com/schedule.jpg"],
+  "targetType": "class",
+  "targetClass": "10A",
+  "targetSection": "A",
+  "priority": "high",
+  "expiresAt": "2024-12-31"
+}
+```
+
+### Creating Announcements (Teacher)
+
+#### Teacher Announcement to All Students
+```javascript
+POST /api/announcements/teacher/create
+{
+  "title": "Assignment Submission",
+  "message": "Please submit your math assignments by Friday. Late submissions will not be accepted.",
+  "images": ["https://cloudinary.com/assignment.jpg"],
+  "targetType": "students",
+  "priority": "medium"
+}
+```
+
+#### Teacher Announcement to Specific Class
+```javascript
+POST /api/announcements/teacher/create
+{
+  "title": "Class 9B Quiz Tomorrow",
+  "message": "Don't forget about the biology quiz tomorrow. Make sure to review chapters 5-7.",
+  "targetType": "class",
+  "targetClass": "9B",
+  "priority": "high"
+}
+```
+
+### Adding Student Marks (Admin/Teacher)
+
+#### Add Marks for Multiple Subjects
+```javascript
+POST /api/marks/add
+{
+  "studentIdString": "S-ahmedali-10A",
+  "examType": "midterm",
+  "examDate": "2024-03-15",
+  "academicYear": "2023-2024",
+  "semester": "2nd",
+  "subjects": [
+    {
+      "subjectName": "Mathematics",
+      "marksObtained": 85,
+      "totalMarks": 100,
+      "remarks": "Good performance"
+    },
+    {
+      "subjectName": "English",
+      "marksObtained": 78,
+      "totalMarks": 100,
+      "remarks": "Needs improvement in grammar"
+    },
+    {
+      "subjectName": "Physics",
+      "marksObtained": 92,
+      "totalMarks": 100,
+      "remarks": "Excellent"
+    }
+  ],
+  "remarks": "Overall good performance in midterm exam"
+}
+// Auto-calculates: percentages, grades, overall percentage, overall grade
+```
+
+#### Get Student's Academic Record
+```javascript
+GET /api/marks/student/S-ahmedali-10A
+// Returns organized academic record with all exams, subjects, and grades
+```
+
+#### Get Class Performance
+```javascript
+GET /api/marks/class/10A/A?examType=midterm&academicYear=2023-2024
+// Returns class performance with rankings and positions
 ```
 
 ## Authentication

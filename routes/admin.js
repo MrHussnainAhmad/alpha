@@ -2,6 +2,7 @@ const express = require("express");
 const Admin = require("../models/admin");
 const Teacher = require("../models/teacher");
 const Student = require("../models/student");
+const Announcement = require("../models/announcement");
 const bcrypt = require("bcrypt");
 const jwt = require("jsonwebtoken");
 

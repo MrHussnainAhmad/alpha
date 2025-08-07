@@ -9,6 +9,10 @@ const multer = require("multer");
 const adminRoutes = require("./routes/admin.js");
 const teacherRoutes = require("./routes/teacher.js");
 const studentRoutes = require("./routes/student.js");
+const announcementRoutes = require("./routes/announcements.js");
+const marksRoutes = require("./routes/marks.js");
+const feeVoucherRoutes = require("./routes/feeVouchers.js");
+const classQuestionRoutes = require("./routes/classQuestions.js");
 const { CloudinaryStorage } = require("multer-storage-cloudinary");
 
 dotenv.config();
@@ -42,13 +46,27 @@ const voucherStorage = new CloudinaryStorage({
   },
 });
 
+// Storage configuration for announcement images
+const announcementStorage = new CloudinaryStorage({
+  cloudinary: cloudinary,
+  params: {
+    folder: "announcements",
+    allowed_formats: ["jpg", "jpeg", "png"],
+  },
+});
+
 const uploadProfile = multer({ storage: profileStorage });
 const uploadVoucher = multer({ storage: voucherStorage });
+const uploadAnnouncement = multer({ storage: announcementStorage });
 
 // Use routes with specific prefixes
 app.use("/api/admin", adminRoutes);
 app.use("/api/teacher", teacherRoutes);
 app.use("/api/student", studentRoutes);
+app.use("/api/announcements", announcementRoutes);
+app.use("/api/marks", marksRoutes);
+app.use("/api/fee-vouchers", feeVoucherRoutes);
+app.use("/api/class-questions", classQuestionRoutes);
 
 // Image upload endpoints
 app.post("/api/upload-profile", uploadProfile.single("image"), (req, res) => {
@@ -73,6 +91,24 @@ app.post("/api/upload-voucher", uploadVoucher.single("voucher"), (req, res) => {
     res.status(200).json({ 
       message: "Voucher uploaded successfully",
       voucherUrl: req.file.path 
+    });
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+});
+
+// Upload multiple images for announcements
+app.post("/api/upload-announcement-images", uploadAnnouncement.array("images", 5), (req, res) => {
+  try {
+    if (!req.files || req.files.length === 0) {
+      return res.status(400).json({ message: "No images uploaded" });
+    }
+    
+    const imageUrls = req.files.map(file => file.path);
+    
+    res.status(200).json({ 
+      message: "Images uploaded successfully",
+      imageUrls: imageUrls
     });
   } catch (error) {
     res.status(500).json({ message: error.message });

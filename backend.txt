@@ -1,0 +1,490 @@
+# 🏫 SCHOOL MOBILE APP BACKEND SYSTEM
+## Complete System Documentation
+
+### 📋 **OVERVIEW**
+This is a comprehensive Node.js/Express backend system for a school mobile application that manages three types of users: **Admins/Principals**, **Teachers**, and **Students**. The system provides role-based authentication, user management, announcements, academic records, fee management, and Q&A functionality.
+
+---
+
+## 🗄️ **DATABASE MODELS**
+
+### **1. User Models**
+
+#### **👨‍💼 Admin Model (`/models/admin.js`)**
+- **Fields:**
+  - `username` - Unique admin username
+  - `password` - Encrypted password
+  - `fullname` - Full name of admin
+  - `email` - Email address
+  - `phone` - Phone number
+  - `img` - Profile image URL (Cloudinary)
+  - `joiningDate` - When admin joined
+  - `role` - Admin role (Principal, Vice-Principal, etc.)
+  - `permissions` - Array of permissions
+  - `isActive` - Account status
+
+#### **👨‍🏫 Teacher Model (`/models/teacher.js`)**
+- **Fields:**
+  - `username` - Unique teacher username
+  - `password` - Encrypted password
+  - `fullname` - Full name of teacher
+  - `email` - Email address
+  - `phone` - Phone number
+  - `img` - Profile image URL
+  - `teacherId` - Auto-generated (TCH-YYYY-XXXX format)
+  - `joiningDate` - Joining date
+  - `subjects` - Array of subjects taught
+  - `qualification` - Educational qualification
+  - `experience` - Years of experience
+  - `salary` - Monthly salary
+  - `address` - Physical address
+  - `emergencyContact` - Emergency contact info
+  - `isActive` - Account status
+
+#### **👨‍🎓 Student Model (`/models/student.js`)**
+- **Fields:**
+  - `username` - Unique student username
+  - `password` - Encrypted password
+  - `fullname` - Full name of student
+  - `email` - Email address
+  - `phone` - Phone number
+  - `img` - Profile image URL
+  - `studentId` - Auto-generated (STU-YYYY-XXXX format)
+  - `rollNumber` - Roll number in class
+  - `class` - Class/Grade (e.g., "10th")
+  - `section` - Section (e.g., "A", "B")
+  - `admissionDate` - Date of admission
+  - `dateOfBirth` - Date of birth
+  - `gender` - Gender
+  - `address` - Physical address
+  - `fatherName` - Father's name
+  - `motherName` - Mother's name
+  - `guardianPhone` - Guardian's phone
+  - `emergencyContact` - Emergency contact
+  - `previousSchool` - Previous school info
+  - `medicalInfo` - Medical information
+  - `isActive` - Account status
+
+### **2. Academic Models**
+
+#### **📊 Marks Model (`/models/marks.js`)**
+- **Purpose:** Store and manage student academic performance
+- **Fields:**
+  - `studentId` - Reference to student
+  - `studentIdString` - Student ID string
+  - `studentName` - Student's name
+  - `class` - Student's class
+  - `section` - Student's section
+  - `examType` - Type of exam (Monthly, Midterm, Final, etc.)
+  - `academicYear` - Academic year
+  - `subjects` - Array of subject marks:
+    - `subjectName` - Subject name
+    - `totalMarks` - Maximum marks
+    - `obtainedMarks` - Marks obtained
+    - `percentage` - Auto-calculated percentage
+    - `grade` - Auto-calculated grade (A+, A, B+, etc.)
+  - `overallPercentage` - Overall percentage
+  - `overallGrade` - Overall grade
+  - `totalSubjects` - Number of subjects
+  - `addedBy` - Who added the record
+  - `addedByType` - Admin or Teacher
+  - `remarks` - Additional comments
+
+#### **🏆 Grade Calculation System:**
+- A+ (90-100%), A (80-89%), B+ (70-79%), B (60-69%), C+ (50-59%), C (40-49%), D (33-39%), F (<33%)
+
+### **3. Communication Models**
+
+#### **📢 Announcement Model (`/models/announcement.js`)**
+- **Purpose:** Handle announcements and student questions
+- **Fields:**
+  - `title` - Announcement title
+  - `message` - Announcement content
+  - `images` - Array of image URLs
+  - `targetType` - Who can see it ('all', 'teachers', 'students', 'class', 'question')
+  - `targetClass` - Specific class (if applicable)
+  - `targetSection` - Specific section (if applicable)
+  - `createdBy` - Creator reference
+  - `createdByType` - Admin, Teacher, or Student
+  - `createdByName` - Creator's name
+  - `priority` - Priority level (low, medium, high, urgent)
+  - `expiresAt` - Expiration date
+  - `readBy` - Array of users who read it
+  - **For Student Questions:**
+    - `questionType` - Type of question (general, homework, exam, etc.)
+    - `subject` - Subject category
+    - `replies` - Array of teacher/admin replies
+    - `isResolved` - Question resolution status
+
+#### **❓ Class Question Model (`/models/classQuestion.js`)**
+- **Purpose:** Dedicated Q&A system for class-specific questions
+- **Fields:**
+  - `title` - Question title
+  - `question` - Question content
+  - `images` - Question images
+  - `subject` - Subject category
+  - `studentId` - Student who asked
+  - `studentIdString` - Student ID string
+  - `studentName` - Student name (or Anonymous)
+  - `class` - Student's class
+  - `section` - Student's section
+  - `academicYear` - Academic year
+  - `priority` - Question priority
+  - `isAnonymous` - Anonymous question flag
+  - `tags` - Question tags
+  - `answers` - Array of teacher/admin answers
+  - `status` - Question status (open, answered, resolved)
+  - `views` - View tracking
+  - `totalAnswers` - Answer count
+  - `acceptedAnswerId` - Accepted answer ID
+
+### **4. Financial Models**
+
+#### **💰 Fee Voucher Model (`/models/feeVoucher.js`)**
+- **Purpose:** Manage student fee submissions
+- **Fields:**
+  - `studentId` - Reference to student
+  - `studentIdString` - Student ID
+  - `specialStudentId` - Special ID for fee vouchers (StudentID + RollNumber)
+  - `studentName` - Student name
+  - `class` - Student's class
+  - `section` - Student's section
+  - `rollNumber` - Student's roll number
+  - `feeType` - Type of fee (Monthly, Annual, Exam, etc.)
+  - `amount` - Fee amount
+  - `dueDate` - Payment due date
+  - `submissionDate` - When voucher was submitted
+  - `voucherImage` - Voucher image URL
+  - `bankName` - Bank name
+  - `transactionId` - Transaction reference
+  - `status` - Verification status (pending, verified, rejected)
+  - `verifiedBy` - Admin who verified
+  - `verificationDate` - Verification date
+  - `remarks` - Admin remarks
+  - `academicYear` - Academic year
+
+---
+
+## 🔐 **AUTHENTICATION & SECURITY**
+
+### **JWT Token System (`/middleware/auth.js`)**
+- **Token Generation:** JWT tokens with user ID, type, and expiration
+- **Middleware Functions:**
+  - `authenticateToken` - General authentication
+  - `authenticateAdmin` - Admin-only access
+  - `authenticateTeacher` - Teacher-only access  
+  - `authenticateAdminOrTeacher` - Admin or Teacher access
+- **Password Security:** bcrypt hashing with salt rounds
+- **Role-Based Access Control:** Different permissions for each user type
+
+---
+
+## 🛣️ **API ROUTES**
+
+### **1. Admin Routes (`/routes/admin.js`)**
+
+#### **Authentication:**
+- `POST /api/admin/register` - Register new admin
+- `POST /api/admin/login` - Admin login
+- `POST /api/admin/change-password` - Change password
+
+#### **Profile Management:**
+- `GET /api/admin/profile` - Get admin profile
+- `PUT /api/admin/update-profile` - Update admin profile
+
+#### **User Management:**
+- `GET /api/admin/teachers` - Get all teachers
+- `GET /api/admin/students` - Get all students
+- `GET /api/admin/teachers/search` - Search teachers
+- `GET /api/admin/students/search` - Search students
+- `PUT /api/admin/teacher/:id` - Update teacher
+- `PUT /api/admin/student/:id` - Update student
+- `DELETE /api/admin/teacher/:id` - Soft delete teacher
+- `DELETE /api/admin/student/:id` - Soft delete student
+
+#### **Statistics & Analytics:**
+- `GET /api/admin/stats` - Get system statistics
+- `GET /api/admin/teacher-stats` - Teacher statistics
+- `GET /api/admin/student-stats` - Student statistics
+
+### **2. Teacher Routes (`/routes/teacher.js`)**
+
+#### **Authentication:**
+- `POST /api/teacher/register` - Register new teacher
+- `POST /api/teacher/login` - Teacher login
+- `POST /api/teacher/change-password` - Change password
+
+#### **Profile Management:**
+- `GET /api/teacher/profile` - Get teacher profile
+- `PUT /api/teacher/update-profile` - Update teacher profile
+
+#### **Student Management:**
+- `GET /api/teacher/students` - Get all students
+- `GET /api/teacher/students/class/:class/:section` - Get class students
+- `GET /api/teacher/student/:id` - Get specific student
+
+### **3. Student Routes (`/routes/student.js`)**
+
+#### **Authentication:**
+- `POST /api/student/register` - Register new student
+- `POST /api/student/login` - Student login
+- `POST /api/student/change-password` - Change password
+
+#### **Profile Management:**
+- `GET /api/student/profile` - Get student profile
+- `PUT /api/student/update-profile` - Update student profile
+
+#### **Academic Records:**
+- `GET /api/student/marks` - Get academic records
+- `GET /api/student/marks/exam/:examType` - Get specific exam marks
+
+#### **Fee Management:**
+- `POST /api/student/fee-voucher` - Submit fee voucher
+- `GET /api/student/fee-vouchers` - Get fee voucher history
+
+### **4. Announcement Routes (`/routes/announcements.js`)**
+
+#### **Admin Features:**
+- `POST /api/announcements/create` - Create announcement
+- `GET /api/announcements/admin/all` - Get all announcements
+- `PUT /api/announcements/:id` - Update announcement
+- `DELETE /api/announcements/:id` - Delete announcement
+- `GET /api/announcements/admin/stats` - Announcement statistics
+
+#### **Teacher Features:**
+- `POST /api/announcements/teacher/create` - Create teacher announcement
+- `GET /api/announcements/teacher/my-announcements` - Get own announcements
+- `PUT /api/announcements/teacher/:id` - Update own announcement
+- `DELETE /api/announcements/teacher/:id` - Delete own announcement
+- `POST /api/announcements/:questionId/reply` - Reply to student questions
+
+#### **Student Features:**
+- `GET /api/announcements/student` - Get student announcements
+- `POST /api/announcements/student/ask-question` - Post a question
+- `GET /api/announcements/student/my-questions` - Get own questions
+- `POST /api/announcements/:questionId/accept-reply/:replyId` - Accept answer
+
+#### **General Features:**
+- `GET /api/announcements/:id` - Get specific announcement
+- `POST /api/announcements/:id/read` - Mark as read
+- `GET /api/announcements/questions/class/:class/:section` - Get class questions
+
+### **5. Marks Routes (`/routes/marks.js`)**
+
+#### **Admin/Teacher Features:**
+- `POST /api/marks/add` - Add student marks
+- `PUT /api/marks/:id` - Update marks
+- `DELETE /api/marks/:id` - Delete marks
+- `GET /api/marks/student/:studentId` - Get student's all marks
+- `GET /api/marks/class/:class/:section` - Get class performance
+- `GET /api/marks/teacher/my-records` - Get teacher's added records
+
+#### **Analytics:**
+- `GET /api/marks/analytics/class/:class/:section` - Class analytics
+- `GET /api/marks/analytics/subject/:subject` - Subject analytics
+- `GET /api/marks/analytics/exam/:examType` - Exam analytics
+
+### **6. Fee Voucher Routes (`/routes/feeVouchers.js`)**
+
+#### **Admin Features:**
+- `GET /api/fee-vouchers/admin/all` - Get all vouchers
+- `PUT /api/fee-vouchers/admin/verify/:id` - Verify voucher
+- `PUT /api/fee-vouchers/admin/reject/:id` - Reject voucher
+- `GET /api/fee-vouchers/admin/stats` - Fee statistics
+- `GET /api/fee-vouchers/admin/pending` - Get pending vouchers
+
+#### **Filtering & Search:**
+- Filter by status, class, fee type, date range
+- Search by student name or ID
+- Pagination support
+
+### **7. Class Questions Routes (`/routes/classQuestions.js`)**
+
+#### **Student Features:**
+- `POST /api/class-questions/student/ask` - Post question
+- `GET /api/class-questions/student/my-questions` - Get own questions
+- `POST /api/class-questions/:questionId/accept/:answerId` - Accept answer
+- `PUT /api/class-questions/student/:questionId` - Update question
+
+#### **Teacher/Admin Features:**
+- `POST /api/class-questions/:questionId/answer` - Answer question
+- `GET /api/class-questions/subject/:subject` - Get subject questions
+- `GET /api/class-questions/admin/all` - Get all questions (admin)
+- `GET /api/class-questions/admin/statistics` - Q&A statistics
+
+#### **General Features:**
+- `GET /api/class-questions/class/:class/:section` - Get class questions
+- `GET /api/class-questions/:questionId` - Get specific question
+- `POST /api/class-questions/:questionId/like/:answerId` - Like answer
+
+---
+
+## 📁 **FILE UPLOAD SYSTEM**
+
+### **Cloudinary Integration:**
+- **Profile Images:** `/api/upload-profile` - User profile pictures
+- **Fee Vouchers:** `/api/upload-voucher` - Fee payment vouchers (PDF/Images)
+- **Announcement Images:** `/api/upload-announcement-images` - Multiple images for announcements
+
+### **Storage Configuration:**
+- **Folders:** Organized by type (profiles, fee-vouchers, announcements)
+- **Formats:** JPG, JPEG, PNG for images; PDF for vouchers
+- **Security:** File type validation and size limits
+
+---
+
+## 🔧 **SYSTEM FEATURES**
+
+### **1. User Management:**
+✅ **Role-based Access Control** - Different permissions for Admin, Teacher, Student
+✅ **Profile Management** - Complete profile CRUD operations
+✅ **Search & Filtering** - Advanced search across all user types
+✅ **Bulk Operations** - Mass updates and operations
+✅ **Account Status** - Active/inactive user management
+
+### **2. Academic Management:**
+✅ **Marks Management** - Complete grade book system
+✅ **Auto Grade Calculation** - Automatic percentage and grade computation
+✅ **Multi-Exam Support** - Monthly, Midterm, Final exams
+✅ **Subject-wise Records** - Detailed subject performance
+✅ **Academic Analytics** - Performance insights and statistics
+
+### **3. Communication System:**
+✅ **Announcements** - Targeted messaging system
+✅ **Student Questions** - Q&A system integrated with announcements
+✅ **Class-specific Communication** - Targeted class/section messaging
+✅ **Multi-media Support** - Images in announcements and questions
+✅ **Read Tracking** - Track who has read announcements
+✅ **Priority System** - Urgent, high, medium, low priority levels
+
+### **4. Q&A System:**
+✅ **Dual Q&A Models** - Both announcement-based and dedicated class questions
+✅ **Anonymous Questions** - Option for anonymous student questions
+✅ **Answer Acceptance** - Students can accept best answers
+✅ **Subject Categorization** - Questions organized by subjects
+✅ **View Tracking** - Track question views and engagement
+✅ **Like System** - Students and teachers can like answers
+
+### **5. Financial Management:**
+✅ **Fee Voucher System** - Digital fee submission
+✅ **Verification Workflow** - Admin verification of fee payments
+✅ **Special Student IDs** - Unique IDs for fee vouchers
+✅ **Multiple Fee Types** - Monthly, annual, exam fees
+✅ **Payment Tracking** - Complete fee payment history
+✅ **Bank Integration** - Support for bank transaction details
+
+### **6. Security & Authentication:**
+✅ **JWT Authentication** - Secure token-based auth
+✅ **Password Encryption** - bcrypt password hashing
+✅ **Role-based Permissions** - Granular access control
+✅ **Session Management** - Secure session handling
+✅ **Input Validation** - Comprehensive data validation
+
+### **7. Analytics & Reporting:**
+✅ **User Statistics** - Comprehensive user analytics
+✅ **Academic Performance** - Grade and performance analytics  
+✅ **Fee Management Stats** - Financial reporting
+✅ **Announcement Analytics** - Communication metrics
+✅ **Q&A Statistics** - Question and answer insights
+
+---
+
+## 🏗️ **SYSTEM ARCHITECTURE**
+
+### **Technology Stack:**
+- **Backend:** Node.js with Express.js
+- **Database:** MongoDB with Mongoose ODM
+- **Authentication:** JWT (JSON Web Tokens)
+- **File Storage:** Cloudinary for images and documents
+- **Security:** bcrypt for password hashing
+- **Validation:** Express-validator for input validation
+
+### **Project Structure:**
+```
+backend/
+├── models/          # Database models
+├── routes/          # API route handlers  
+├── middleware/      # Authentication & validation
+├── index.js         # Main server file
+├── .env            # Environment variables
+└── package.json    # Dependencies
+```
+
+### **Environment Variables:**
+- `MONGO_URL` - MongoDB connection string
+- `JWT_SECRET` - JWT secret key
+- `CLOUDINARY_NAME` - Cloudinary cloud name
+- `CLOUDINARY_API_KEY` - Cloudinary API key
+- `CLOUDINARY_API_SECRET` - Cloudinary API secret
+- `PORT` - Server port (default: 5000)
+
+---
+
+## 🚀 **DEPLOYMENT & USAGE**
+
+### **Installation:**
+1. Clone the repository
+2. Run `npm install` to install dependencies
+3. Create `.env` file with required environment variables
+4. Run `npm start` or `node index.js` to start server
+
+### **API Usage:**
+All endpoints require appropriate authentication tokens in headers:
+```
+Authorization: Bearer <JWT_TOKEN>
+```
+
+### **Data Flow:**
+1. **Authentication** → User login → JWT token generation
+2. **Authorization** → Token validation → Role-based access
+3. **Data Processing** → CRUD operations → Database interaction
+4. **Response** → JSON formatted responses → Client consumption
+
+---
+
+## 📊 **SYSTEM STATISTICS**
+
+### **Models:** 6 main database models
+### **API Endpoints:** 80+ RESTful API endpoints
+### **User Types:** 3 distinct user roles
+### **Features:** 7 major feature modules
+### **File Upload:** 3 different upload types
+### **Authentication:** 4 authentication middleware types
+
+---
+
+## 🎯 **USE CASES**
+
+### **For Schools:**
+- Complete student information management
+- Teacher performance tracking
+- Academic record keeping
+- Fee collection management
+- Parent-teacher-student communication
+- Digital announcement system
+- Q&A platform for academic help
+
+### **For Administrators:**
+- Comprehensive school management
+- User account management
+- Academic performance analytics
+- Financial tracking and reporting
+- Communication management
+
+### **For Teachers:**
+- Student academic record management
+- Class performance tracking
+- Announcement creation
+- Q&A support for students
+- Grade book management
+
+### **For Students:**
+- Academic record access
+- Fee payment submission
+- Question posting and help
+- Announcement reception
+- Profile management
+
+---
+
+This backend system provides a complete, scalable solution for modern school management with robust security, comprehensive features, and excellent user experience across all stakeholder roles. 🏫✨
