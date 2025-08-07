@@ -5,7 +5,10 @@ const dotenv = require("dotenv");
 const cors = require("cors");
 const cloudinary = require("cloudinary");
 const multer = require("multer");
-const user = require("./routes/user.js");
+// Import all route files
+const adminRoutes = require("./routes/admin.js");
+const teacherRoutes = require("./routes/teacher.js");
+const studentRoutes = require("./routes/student.js");
 const { CloudinaryStorage } = require("multer-storage-cloudinary");
 
 dotenv.config();
@@ -21,20 +24,59 @@ cloudinary.config({
   api_secret: process.env.CLOUDINARY_API_SECRET,
 });
 
-const storage = new CloudinaryStorage({
+// Storage configuration for profile images
+const profileStorage = new CloudinaryStorage({
   cloudinary: cloudinary,
   params: {
-    folder: "avatars",
+    folder: "profiles",
     allowed_formats: ["jpg", "jpeg", "png"],
   },
 });
 
-const upload = multer({ storage: storage });
+// Storage configuration for fee vouchers
+const voucherStorage = new CloudinaryStorage({
+  cloudinary: cloudinary,
+  params: {
+    folder: "fee-vouchers",
+    allowed_formats: ["jpg", "jpeg", "png", "pdf"],
+  },
+});
 
-app.use("/api", user);
+const uploadProfile = multer({ storage: profileStorage });
+const uploadVoucher = multer({ storage: voucherStorage });
 
-app.post("/api/signup", upload.single("avatar"), (req, res) => {
-  // Signup logic here
+// Use routes with specific prefixes
+app.use("/api/admin", adminRoutes);
+app.use("/api/teacher", teacherRoutes);
+app.use("/api/student", studentRoutes);
+
+// Image upload endpoints
+app.post("/api/upload-profile", uploadProfile.single("image"), (req, res) => {
+  try {
+    if (!req.file) {
+      return res.status(400).json({ message: "No image uploaded" });
+    }
+    res.status(200).json({ 
+      message: "Image uploaded successfully",
+      imageUrl: req.file.path 
+    });
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+});
+
+app.post("/api/upload-voucher", uploadVoucher.single("voucher"), (req, res) => {
+  try {
+    if (!req.file) {
+      return res.status(400).json({ message: "No voucher uploaded" });
+    }
+    res.status(200).json({ 
+      message: "Voucher uploaded successfully",
+      voucherUrl: req.file.path 
+    });
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
 });
 
 mongoose

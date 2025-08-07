@@ -1,23 +1,12 @@
+// This file is kept for reference or can be used as a base model
+// Main models are: Admin, Teacher, and Student
 
-const mongoose = require("mongoose");
+const Admin = require('./admin');
+const Teacher = require('./teacher');
+const Student = require('./student');
 
-const userSchema = new mongoose.Schema({
-  name: {
-    type: String,
-    required: true,
-  },
-  email: {
-    type: String,
-    required: true,
-    unique: true,
-  },
-  password: {
-    type: String,
-    required: true,
-  },
-  avatar: {
-    type: String,
-  },
-});
-
-module.exports = mongoose.model("User", userSchema);
+module.exports = {
+  Admin,
+  Teacher,
+  Student
+};
