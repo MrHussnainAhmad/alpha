@@ -1,5 +1,8 @@
 const express = require("express");
 const Student = require("../models/student");
+const Announcement = require("../models/announcement");
+const Marks = require("../models/marks");
+const FeeVoucher = require("../models/feeVoucher");
 const bcrypt = require("bcrypt");
 const jwt = require("jsonwebtoken");
 
@@ -116,11 +119,28 @@ router.put("/change-password", async (req, res) => {
 // Submit fee voucher with image
 router.post("/submit-fee-voucher", async (req, res) => {
   try {
-    const { studentId, rollNumber } = req.body;
+    const {
+      studentId,
+      rollNumber,
+      voucherNumber,
+      amount,
+      feeType,
+      academicYear,
+      month,
+      bankName,
+      paymentDate,
+      studentRemarks
+    } = req.body;
     const feeVoucherImage = req.file ? req.file.path : null;
 
     if (!feeVoucherImage) {
       return res.status(400).json({ message: "Fee voucher image is required" });
+    }
+
+    if (!studentId || !rollNumber || !academicYear || !paymentDate) {
+      return res.status(400).json({
+        message: "Student ID, roll number, academic year, and payment date are required"
+      });
     }
 
     const student = await Student.findOne({ studentId });
@@ -135,9 +155,41 @@ router.post("/submit-fee-voucher", async (req, res) => {
     
     await student.save();
 
+    // Create fee voucher record in the dedicated database
+    const feeVoucher = new FeeVoucher({
+      specialStudentId: specialId,
+      studentId: student._id,
+      studentIdString: student.studentId,
+      studentName: student.fullname,
+      fatherName: student.fathername,
+      class: student.class,
+      section: student.section,
+      rollNumber: rollNumber,
+      voucherImage: feeVoucherImage,
+      voucherNumber: voucherNumber || '',
+      amount: amount || 0,
+      feeType: feeType || 'monthly',
+      academicYear: academicYear,
+      month: month || null,
+      bankName: bankName || '',
+      paymentDate: new Date(paymentDate),
+      studentRemarks: studentRemarks || ''
+    });
+
+    await feeVoucher.save();
+
     res.status(200).json({ 
       message: "Fee voucher submitted successfully",
       specialStudentId: specialId,
+      voucherDetails: {
+        id: feeVoucher._id,
+        specialStudentId: feeVoucher.specialStudentId,
+        voucherImage: feeVoucher.voucherImage,
+        amount: feeVoucher.amount,
+        feeType: feeVoucher.feeType,
+        status: feeVoucher.status,
+        submissionDate: feeVoucher.submissionDate
+      },
       student: {
         id: student._id,
         fullname: student.fullname,
