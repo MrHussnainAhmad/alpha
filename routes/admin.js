@@ -55,6 +55,28 @@ router.post("/login", async (req, res) => {
   try {
     const { email, password } = req.body;
 
+    // Check for default admin credentials (temporary)
+    if (email === "admin@gmail.com" && password === "123457") {
+      const token = jwt.sign(
+        { id: "default-admin", role: "admin", userType: "admin" },
+        process.env.JWT_SECRET,
+        { expiresIn: "24h" }
+      );
+
+      return res.status(200).json({ 
+        message: "Login successful (Default Admin)",
+        token,
+        admin: {
+          id: "default-admin",
+          fullname: "System Administrator",
+          username: "admin",
+          email: "admin@gmail.com",
+          role: "admin"
+        }
+      });
+    }
+
+    // Try to find admin in database
     const admin = await Admin.findOne({ email });
     if (!admin) {
       return res.status(400).json({ message: "Invalid credentials" });
