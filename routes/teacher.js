@@ -1,8 +1,9 @@
 const express = require("express");
 const Teacher = require("../models/teacher");
 const Student = require("../models/student");
-const Announcement = require("../models/announcement");
 const bcrypt = require("bcrypt");
+const jwt = require("jsonwebtoken");
+const { authenticateTeacher } = require('../middleware/auth');
 const jwt = require("jsonwebtoken");
 
 const router = express.Router();

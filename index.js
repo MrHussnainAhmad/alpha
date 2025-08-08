@@ -143,6 +143,9 @@ app.post("/api/upload-announcement-images", uploadAnnouncement.array("images", 5
   }
 });
 
+// Import cleanup scheduler
+const { startScheduledCleanup } = require("./scripts/cleanupUnverifiedAccounts");
+
 mongoose
   .connect(process.env.MONGO_URL, {
     useNewUrlParser: true,
@@ -151,6 +154,12 @@ mongoose
   .then(() => {
     app.listen(process.env.PORT || 5000, () => {
       console.log(`Server is running on port ${process.env.PORT || 5000}`);
+      
+      // Start the cleanup scheduler
+      console.log('Starting cleanup scheduler...');
+      startScheduledCleanup().catch(error => {
+        console.error('Failed to start cleanup scheduler:', error);
+      });
     });
   })
   .catch((err) => {

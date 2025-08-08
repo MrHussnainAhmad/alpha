@@ -8,6 +8,7 @@ const bcrypt = require("bcrypt");
 const jwt = require("jsonwebtoken");
 const cloudinary = require('cloudinary').v2;
 const multer = require('multer');
+const { authenticateAdmin } = require('../middleware/auth');
 
 // Configure Cloudinary
 cloudinary.config({
@@ -268,6 +269,38 @@ router.put("/update-teacher/:id", async (req, res) => {
   }
 });
 
+// Verify/Unverify Teacher
+router.put('/verify-teacher/:id', authenticateAdmin, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { isVerified } = req.body;
+    
+    const teacher = await Teacher.findById(id);
+    if (!teacher) {
+      return res.status(404).json({ message: "Teacher not found" });
+    }
+    
+    teacher.isVerified = isVerified;
+    if (isVerified) {
+      teacher.verifiedAt = new Date();
+      teacher.verifiedBy = req.user.id;
+    } else {
+      teacher.verifiedAt = null;
+      teacher.verifiedBy = null;
+    }
+    
+    await teacher.save();
+    
+    res.status(200).json({ 
+      success: true,
+      message: `Teacher ${isVerified ? 'verified' : 'unverified'} successfully`,
+      teacher 
+    });
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+});
+
 // Delete teacher (admin function)
 router.delete("/delete-teacher/:id", async (req, res) => {
   try {
@@ -324,6 +357,38 @@ router.put("/update-student/:id", async (req, res) => {
 
     res.status(200).json({ 
       message: "Student updated successfully",
+      student 
+    });
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+});
+
+// Verify/Unverify Student
+router.put('/verify-student/:id', authenticateAdmin, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { isVerified } = req.body;
+    
+    const student = await Student.findById(id);
+    if (!student) {
+      return res.status(404).json({ message: "Student not found" });
+    }
+    
+    student.isVerified = isVerified;
+    if (isVerified) {
+      student.verifiedAt = new Date();
+      student.verifiedBy = req.user.id;
+    } else {
+      student.verifiedAt = null;
+      student.verifiedBy = null;
+    }
+    
+    await student.save();
+    
+    res.status(200).json({ 
+      success: true,
+      message: `Student ${isVerified ? 'verified' : 'unverified'} successfully`,
       student 
     });
   } catch (error) {
