@@ -18,6 +18,12 @@ const appConfigSchema = new mongoose.Schema({
     default: '',
     trim: true
   },
+  phoneNumber: {
+    type: String,
+    default: '', // Default WhatsApp number
+    trim: true,
+    maxlength: 20
+  },
   createdAt: {
     type: Date,
     default: Date.now

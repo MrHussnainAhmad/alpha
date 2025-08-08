@@ -64,6 +64,17 @@ const teacherSchema = new mongoose.Schema({
     required: true,
     trim: true
   },
+  qualification: {
+    type: String,
+    trim: true,
+  },
+  experience: {
+    type: Number,
+  },
+  subjects: [{
+    type: String,
+    trim: true,
+  }],
   whatsappNumber: {
     type: String,
     required: true,

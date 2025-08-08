@@ -249,7 +249,7 @@ router.put("/update-teacher/:id", async (req, res) => {
     
     // Don't allow password update through this route
     delete updateData.password;
-    
+    console.log('Admin updateTeacher updateData:', updateData);
     const teacher = await Teacher.findByIdAndUpdate(
       id,
       updateData,
@@ -283,7 +283,7 @@ router.put('/verify-teacher/:id', authenticateAdmin, async (req, res) => {
     teacher.isVerified = isVerified;
     if (isVerified) {
       teacher.verifiedAt = new Date();
-      teacher.verifiedBy = req.user.id;
+      teacher.verifiedBy = req.user.id === 'default-admin' ? null : req.user.id;
     } else {
       teacher.verifiedAt = null;
       teacher.verifiedBy = null;
@@ -378,7 +378,7 @@ router.put('/verify-student/:id', authenticateAdmin, async (req, res) => {
     student.isVerified = isVerified;
     if (isVerified) {
       student.verifiedAt = new Date();
-      student.verifiedBy = req.user.id;
+      student.verifiedBy = req.user.id === 'default-admin' ? null : req.user.id;
     } else {
       student.verifiedAt = null;
       student.verifiedBy = null;
@@ -542,7 +542,7 @@ router.get("/app-config", async (req, res) => {
 // Update app configuration
 router.put("/app-config", async (req, res) => {
   try {
-    const { collegeName, logoBase64, logoType } = req.body;
+    const { collegeName, logoBase64, logoType, phoneNumber } = req.body;
     console.log('App config update request:', { collegeName, hasLogo: !!logoBase64, logoType });
     
     const updateData = {};
@@ -550,6 +550,10 @@ router.put("/app-config", async (req, res) => {
     // Update college name if provided
     if (collegeName) {
       updateData.collegeName = collegeName.trim();
+    }
+
+    if (phoneNumber !== undefined) {
+      updateData.phoneNumber = phoneNumber.trim();
     }
     
     // Handle logo upload if provided

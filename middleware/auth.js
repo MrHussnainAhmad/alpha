@@ -26,14 +26,22 @@ const authenticateAdmin = async (req, res, next) => {
   authenticateToken(req, res, async () => {
     try {
       if (req.user.userType !== 'admin') {
-        return res.status(403).json({ message: "Admin access required" });
+        return res.status(403).json({ message: 'Admin access required' });
       }
-      
+
+      // Handle the default admin case
+      if (req.user.id === 'default-admin') {
+        // The default admin is not a real user in the DB, so its ID is not a valid ObjectId.
+        // Set it to null to avoid cast errors when it's used in queries or saved as a ref.
+        req.user.id = null;
+        return next();
+      }
+
       const admin = await Admin.findById(req.user.id);
       if (!admin) {
-        return res.status(403).json({ message: "Admin not found" });
+        return res.status(403).json({ message: 'Admin not found' });
       }
-      
+      req.user = admin;
       next();
     } catch (error) {
       res.status(500).json({ message: error.message });

@@ -35,6 +35,7 @@ async function uploadImageToCloudinary(base64Data, folder) {
       publicId: result.public_id
     };
   } catch (error) {
+    console.error('Cloudinary upload error:', error);
     throw new Error('Failed to upload image');
   }
 }
@@ -160,7 +161,9 @@ router.put("/teacher", authenticateTeacher, async (req, res) => {
       address,
       qualification,
       experience,
-      profileImage,
+      subjects,
+      profileImageBase64,
+      profileImageType,
       password
     } = req.body;
 
@@ -177,8 +180,34 @@ router.put("/teacher", authenticateTeacher, async (req, res) => {
     if (phone) updateData.phoneNumber = phone.trim();
     if (address) updateData.address = address.trim();
     if (qualification) updateData.qualification = qualification.trim();
-    if (experience) updateData.experience = experience.trim();
-    if (profileImage) updateData.img = profileImage;
+    if (experience) updateData.experience = experience;
+    if (subjects) updateData.subjects = subjects;
+    console.log('Backend updateData:', updateData);
+    // Handle profile image update
+    if (profileImageBase64 && profileImageType) {
+      console.log('Received teacher profile image update request:');
+      console.log('profileImageType:', profileImageType);
+      console.log('profileImageBase64 length:', profileImageBase64 ? profileImageBase64.length : '0');
+      try {
+        // Delete old image if exists
+        if (teacher.img) {
+          const oldPublicId = teacher.img.split('/').pop().split('.')[0];
+          await deleteImageFromCloudinary(`school-app/profiles/${oldPublicId}`);
+        }
+
+        // Upload new image
+        const imageResult = await uploadImageToCloudinary(
+          `data:${profileImageType};base64,${profileImageBase64}`,
+          'profiles'
+        );
+        updateData.img = imageResult.url;
+      } catch (error) {
+        return res.status(400).json({
+          message: "Error uploading profile image",
+          error: error.message
+        });
+      }
+    }
 
     // Handle password update
     if (password && password.length >= 6) {
@@ -313,7 +342,9 @@ router.put("/student", authenticateStudent, async (req, res) => {
       motherName,
       dateOfBirth,
       gender,
-      profileImage,
+      rollNumber,
+      profileImageBase64,
+      profileImageType,
       password
     } = req.body;
 
@@ -324,6 +355,11 @@ router.put("/student", authenticateStudent, async (req, res) => {
 
     const updateData = {};
 
+    // Prevent student from changing rollNumber if it's already assigned and different from the new value
+    if (student.rollNumber && student.rollNumber.length > 0 && rollNumber && student.rollNumber !== rollNumber) {
+      return res.status(400).json({ message: "Roll number cannot be changed once assigned." });
+    }
+
     // Update basic fields if provided
     if (name) updateData.fullname = name.trim();
     if (email) updateData.email = email.trim();
@@ -333,7 +369,33 @@ router.put("/student", authenticateStudent, async (req, res) => {
     if (motherName) updateData.mothername = motherName.trim();
     if (dateOfBirth) updateData.dob = new Date(dateOfBirth);
     if (gender) updateData.gender = gender;
-    if (profileImage) updateData.img = profileImage;
+    if (rollNumber) updateData.rollNumber = rollNumber.trim();
+
+    // Handle profile image update
+    if (profileImageBase64 && profileImageType) {
+      console.log('Received profile image update request:');
+      console.log('profileImageType:', profileImageType);
+      console.log('profileImageBase64 length:', profileImageBase64 ? profileImageBase64.length : '0');
+      try {
+        // Delete old image if exists
+        if (student.img) {
+          const oldPublicId = student.img.split('/').pop().split('.')[0];
+          await deleteImageFromCloudinary(`school-app/profiles/${oldPublicId}`);
+        }
+
+        // Upload new image
+        const imageResult = await uploadImageToCloudinary(
+          `data:${profileImageType};base64,${profileImageBase64}`,
+          'profiles'
+        );
+        updateData.img = imageResult.url;
+      } catch (error) {
+        return res.status(400).json({ 
+          message: "Error uploading profile image", 
+          error: error.message 
+        });
+      }
+    }
 
     // Handle password update
     if (password && password.length >= 6) {

@@ -291,4 +291,37 @@ router.put("/change-password", async (req, res) => {
   }
 });
 
+// Get teacher dashboard stats
+router.get("/dashboard-stats", authenticateTeacher, async (req, res) => {
+  try {
+    const teacherId = req.user.id; // Authenticated teacher's ID
+
+    // Count all active students (temporary, until teacher-class/section association is clear)
+    const studentCount = await Student.countDocuments({ isActive: true });
+
+    // Count unique classes (unique combinations of class and section)
+    const uniqueClasses = await Student.aggregate([
+      { $match: { isActive: true } },
+      { $group: { _id: { class: "$class", section: "$section" } } },
+      { $count: "count" }
+    ]);
+    const classCount = uniqueClasses.length > 0 ? uniqueClasses[0].count : 0;
+
+    // Placeholder for assignments
+    const assignmentCount = 0; // To be implemented
+
+    res.status(200).json({
+      success: true,
+      stats: {
+        students: studentCount,
+        classes: classCount,
+        assignments: assignmentCount,
+      },
+    });
+  } catch (error) {
+    console.error('Error fetching teacher dashboard stats:', error);
+    res.status(500).json({ message: error.message });
+  }
+});
+
 module.exports = router;
