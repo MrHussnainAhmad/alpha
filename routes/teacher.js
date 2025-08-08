@@ -45,7 +45,13 @@ router.post("/login", async (req, res) => {
   }
 });
 
-// Teacher signup (self-registration without teacherId)
+// Helper function to generate unique Teacher ID
+function generateUniqueTeacherId(name, joiningYear) {
+  const cleanName = name.replace(/\s+/g, '').toLowerCase();
+  return `T-${cleanName}-${joiningYear}`;
+}
+
+// Teacher signup (self-registration with auto-generated teacherId)
 router.post("/signup", async (req, res) => {
   try {
     const teacherData = req.body;
@@ -64,20 +70,31 @@ router.post("/signup", async (req, res) => {
 
     const hashedPassword = await bcrypt.hash(teacherData.password, 10);
     
+    // Generate auto Teacher ID
+    let teacherId = generateUniqueTeacherId(teacherData.fullname, teacherData.joiningYear);
+    let counter = 1;
+    
+    // Ensure uniqueness
+    while (await Teacher.findOne({ teacherId })) {
+      teacherId = `${generateUniqueTeacherId(teacherData.fullname, teacherData.joiningYear)}-${counter}`;
+      counter++;
+    }
+    
     const teacher = new Teacher({
       ...teacherData,
       password: hashedPassword,
+      teacherId, // Auto-generated Teacher ID
       img: '', // Default to empty, will show default image in frontend
-      // Note: teacherId is not set - will be assigned later by admin
     });
 
     await teacher.save();
 
     res.status(201).json({ 
-      message: "Teacher account created successfully. Please wait for admin to assign your Teacher ID.",
+      message: "Teacher account created successfully with Teacher ID: " + teacherId,
       teacher: {
         id: teacher._id,
         fullname: teacher.fullname,
+        teacherId: teacher.teacherId,
         email: teacher.email,
         phoneNumber: teacher.phoneNumber
       }

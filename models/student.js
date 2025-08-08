@@ -116,9 +116,12 @@ const studentSchema = new mongoose.Schema({
 
 // Pre-save middleware to generate special student ID when roll number is provided
 studentSchema.pre('save', function(next) {
-  // Only generate special student ID when roll number is provided and student already has studentId
-  if (this.rollNumber && this.studentId && !this.specialStudentId && this.fullname && this.class) {
-    this.specialStudentId = generateSpecialStudentId(this.fullname, this.class, this.rollNumber);
+  // Generate special student ID when roll number is provided and student already has studentId
+  if (this.rollNumber && this.studentId && this.fullname && this.class) {
+    // Regenerate if rollNumber or class changed
+    if (!this.specialStudentId || this.isModified('rollNumber') || this.isModified('class')) {
+      this.specialStudentId = generateSpecialStudentId(this.fullname, this.class, this.rollNumber);
+    }
   }
   
   next();

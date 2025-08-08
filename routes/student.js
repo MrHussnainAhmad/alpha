@@ -48,7 +48,13 @@ router.post("/login", async (req, res) => {
   }
 });
 
-// Student signup (self-registration without studentId)
+// Helper function to generate unique Student ID
+function generateUniqueStudentId(name, studentClass) {
+  const cleanName = name.replace(/\s+/g, '').toLowerCase();
+  return `S-${cleanName}-${studentClass}`;
+}
+
+// Student signup (self-registration with auto-generated studentId)
 router.post("/signup", async (req, res) => {
   try {
     const studentData = req.body;
@@ -67,20 +73,31 @@ router.post("/signup", async (req, res) => {
 
     const hashedPassword = await bcrypt.hash(studentData.password, 10);
     
+    // Generate auto Student ID
+    let studentId = generateUniqueStudentId(studentData.fullname, studentData.class);
+    let counter = 1;
+    
+    // Ensure uniqueness
+    while (await Student.findOne({ studentId })) {
+      studentId = `${generateUniqueStudentId(studentData.fullname, studentData.class)}-${counter}`;
+      counter++;
+    }
+    
     const student = new Student({
       ...studentData,
       password: hashedPassword,
+      studentId, // Auto-generated Student ID
       img: '', // Default to empty, will show default image in frontend
-      // Note: studentId is not set - will be assigned later by admin or teacher
     });
 
     await student.save();
 
     res.status(201).json({ 
-      message: "Student account created successfully. Please wait for admin/teacher to assign your Student ID.",
+      message: "Student account created successfully with Student ID: " + studentId,
       student: {
         id: student._id,
         fullname: student.fullname,
+        studentId: student.studentId,
         email: student.email,
         class: student.class,
         section: student.section
