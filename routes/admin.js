@@ -3,8 +3,22 @@ const Admin = require("../models/admin");
 const Teacher = require("../models/teacher");
 const Student = require("../models/student");
 const Announcement = require("../models/announcement");
+const AppConfig = require("../models/appConfig");
 const bcrypt = require("bcrypt");
 const jwt = require("jsonwebtoken");
+const cloudinary = require('cloudinary').v2;
+const multer = require('multer');
+
+// Configure Cloudinary
+cloudinary.config({
+  cloud_name: process.env.CLOUDINARY_NAME,
+  api_key: process.env.CLOUDINARY_API_KEY,
+  api_secret: process.env.CLOUDINARY_API_SECRET
+});
+
+// Configure multer for memory storage
+const storage = multer.memoryStorage();
+const upload = multer({ storage: storage });
 
 const router = express.Router();
 
@@ -189,6 +203,279 @@ router.post("/create-student", async (req, res) => {
         studentId: student.studentId,
         email: student.email
       }
+    });
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+});
+
+// Get all teachers (admin function)
+router.get("/teachers", async (req, res) => {
+  try {
+    const teachers = await Teacher.find({ isActive: true }).select('-password');
+    res.status(200).json({ teachers });
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+});
+
+// Get all students (admin function)
+router.get("/students", async (req, res) => {
+  try {
+    const students = await Student.find({ isActive: true }).select('-password');
+    res.status(200).json({ students });
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+});
+
+// Update teacher (admin function)
+router.put("/update-teacher/:id", async (req, res) => {
+  try {
+    const { id } = req.params;
+    const updateData = { ...req.body };
+    
+    // Don't allow password update through this route
+    delete updateData.password;
+    
+    const teacher = await Teacher.findByIdAndUpdate(
+      id,
+      updateData,
+      { new: true }
+    ).select('-password');
+
+    if (!teacher) {
+      return res.status(404).json({ message: "Teacher not found" });
+    }
+
+    res.status(200).json({ 
+      message: "Teacher updated successfully",
+      teacher 
+    });
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+});
+
+// Delete teacher (admin function)
+router.delete("/delete-teacher/:id", async (req, res) => {
+  try {
+    const { id } = req.params;
+    
+    const teacher = await Teacher.findByIdAndDelete(id);
+    if (!teacher) {
+      return res.status(404).json({ message: "Teacher not found" });
+    }
+
+    res.status(200).json({ message: "Teacher deleted successfully" });
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+});
+
+// Get dashboard stats (admin function)
+router.get("/stats", async (req, res) => {
+  try {
+    const teachersCount = await Teacher.countDocuments({ isActive: true });
+    const studentsCount = await Student.countDocuments({ isActive: true });
+    const announcementsCount = await Announcement.countDocuments();
+    
+    res.status(200).json({
+      stats: {
+        teachers: teachersCount,
+        students: studentsCount,
+        announcements: announcementsCount
+      }
+    });
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+});
+
+// Update student (admin function)
+router.put("/update-student/:id", async (req, res) => {
+  try {
+    const { id } = req.params;
+    const updateData = { ...req.body };
+    
+    // Don't allow password update through this route
+    delete updateData.password;
+    
+    const student = await Student.findByIdAndUpdate(
+      id,
+      updateData,
+      { new: true }
+    ).select('-password');
+
+    if (!student) {
+      return res.status(404).json({ message: "Student not found" });
+    }
+
+    res.status(200).json({ 
+      message: "Student updated successfully",
+      student 
+    });
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+});
+
+// Delete student (admin function)
+router.delete("/delete-student/:id", async (req, res) => {
+  try {
+    const { id } = req.params;
+    
+    const student = await Student.findByIdAndDelete(id);
+    if (!student) {
+      return res.status(404).json({ message: "Student not found" });
+    }
+
+    res.status(200).json({ message: "Student deleted successfully" });
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+});
+
+// Clean up teachers without teacherId (should run periodically)
+router.post("/cleanup-teachers", async (req, res) => {
+  try {
+    const twelveHoursAgo = new Date(Date.now() - 12 * 60 * 60 * 1000);
+    
+    const deletedTeachers = await Teacher.deleteMany({
+      teacherId: { $exists: false },
+      createdAt: { $lt: twelveHoursAgo }
+    });
+
+    res.status(200).json({ 
+      message: `Cleaned up ${deletedTeachers.deletedCount} teachers without Teacher ID`,
+      deletedCount: deletedTeachers.deletedCount
+    });
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+});
+
+// Clean up students without studentId (should run periodically)
+router.post("/cleanup-students", async (req, res) => {
+  try {
+    const twelveHoursAgo = new Date(Date.now() - 12 * 60 * 60 * 1000);
+    
+    const deletedStudents = await Student.deleteMany({
+      studentId: { $exists: false },
+      createdAt: { $lt: twelveHoursAgo }
+    });
+
+    res.status(200).json({ 
+      message: `Cleaned up ${deletedStudents.deletedCount} students without Student ID`,
+      deletedCount: deletedStudents.deletedCount
+    });
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+});
+
+// ===== APP CONFIGURATION ROUTES =====
+
+// Get app configuration
+router.get("/app-config", async (req, res) => {
+  try {
+    const config = await AppConfig.getConfig();
+    res.status(200).json({ 
+      message: "App configuration retrieved successfully",
+      config 
+    });
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+});
+
+// Update app configuration
+router.put("/app-config", async (req, res) => {
+  try {
+    const { collegeName, logoBase64, logoType } = req.body;
+    
+    const updateData = {};
+    
+    // Update college name if provided
+    if (collegeName) {
+      updateData.collegeName = collegeName.trim();
+    }
+    
+    // Handle logo upload if provided
+    if (logoBase64 && logoType) {
+      try {
+        // Get current config to delete old logo if exists
+        const currentConfig = await AppConfig.getConfig();
+        
+        // Delete old logo from cloudinary if exists
+        if (currentConfig.logoPublicId) {
+          try {
+            await cloudinary.uploader.destroy(currentConfig.logoPublicId);
+          } catch (deleteError) {
+            console.log('Error deleting old logo:', deleteError);
+          }
+        }
+        
+        // Upload new logo to cloudinary
+        const uploadResult = await cloudinary.uploader.upload(
+          `data:${logoType};base64,${logoBase64}`,
+          {
+            folder: 'school-app/logos',
+            resource_type: 'image',
+            transformation: [
+              { width: 400, height: 400, crop: 'fill', quality: 'auto' }
+            ]
+          }
+        );
+        
+        updateData.logoUrl = uploadResult.secure_url;
+        updateData.logoPublicId = uploadResult.public_id;
+      } catch (uploadError) {
+        return res.status(400).json({ 
+          message: "Error uploading logo", 
+          error: uploadError.message 
+        });
+      }
+    }
+    
+    const updatedConfig = await AppConfig.updateConfig(updateData);
+    
+    res.status(200).json({ 
+      message: "App configuration updated successfully",
+      config: updatedConfig 
+    });
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+});
+
+// Reset app configuration to defaults
+router.post("/app-config/reset", async (req, res) => {
+  try {
+    // Get current config to delete logo if exists
+    const currentConfig = await AppConfig.getConfig();
+    
+    // Delete logo from cloudinary if exists
+    if (currentConfig.logoPublicId) {
+      try {
+        await cloudinary.uploader.destroy(currentConfig.logoPublicId);
+      } catch (deleteError) {
+        console.log('Error deleting logo during reset:', deleteError);
+      }
+    }
+    
+    // Reset to default values
+    const resetData = {
+      collegeName: 'Alpha Education',
+      logoUrl: '',
+      logoPublicId: ''
+    };
+    
+    const resetConfig = await AppConfig.updateConfig(resetData);
+    
+    res.status(200).json({ 
+      message: "App configuration reset to defaults successfully",
+      config: resetConfig 
     });
   } catch (error) {
     res.status(500).json({ message: error.message });

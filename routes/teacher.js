@@ -134,6 +134,79 @@ router.put("/profile", async (req, res) => {
   }
 });
 
+// Get all students (teacher function)
+router.get("/students", async (req, res) => {
+  try {
+    const students = await Student.find({ isActive: true }).select('-password');
+    res.status(200).json({ students });
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+});
+
+// Assign student ID (teacher function)
+router.put("/assign-student-id/:id", async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { studentId } = req.body;
+    
+    if (!studentId) {
+      return res.status(400).json({ message: "Student ID is required" });
+    }
+
+    // Check if student ID already exists
+    const existingStudent = await Student.findOne({ studentId, _id: { $ne: id } });
+    if (existingStudent) {
+      return res.status(400).json({ message: "Student ID already exists" });
+    }
+    
+    const student = await Student.findByIdAndUpdate(
+      id,
+      { studentId },
+      { new: true }
+    ).select('-password');
+
+    if (!student) {
+      return res.status(404).json({ message: "Student not found" });
+    }
+
+    res.status(200).json({ 
+      message: "Student ID assigned successfully",
+      student 
+    });
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+});
+
+// Update student (teacher function)
+router.put("/update-student/:id", async (req, res) => {
+  try {
+    const { id } = req.params;
+    const updateData = { ...req.body };
+    
+    // Don't allow password update through this route
+    delete updateData.password;
+    
+    const student = await Student.findByIdAndUpdate(
+      id,
+      updateData,
+      { new: true }
+    ).select('-password');
+
+    if (!student) {
+      return res.status(404).json({ message: "Student not found" });
+    }
+
+    res.status(200).json({ 
+      message: "Student updated successfully",
+      student 
+    });
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+});
+
 // Change password
 router.put("/change-password", async (req, res) => {
   try {
