@@ -2,8 +2,10 @@ const express = require("express");
 const Teacher = require("../models/teacher");
 const Student = require("../models/student");
 const bcrypt = require("bcrypt");
+const jwt = require("jsonwebtoken");
 const cloudinary = require('cloudinary').v2;
 const multer = require('multer');
+const { authenticateToken, authenticateTeacher, authenticateStudent } = require('../middleware/auth');
 
 const router = express.Router();
 
@@ -46,7 +48,37 @@ async function deleteImageFromCloudinary(publicId) {
   }
 }
 
-// Get Teacher Profile
+// Get authenticated Teacher Profile (without ID)
+router.get("/teacher", authenticateTeacher, async (req, res) => {
+  try {
+    const teacher = await Teacher.findById(req.user.id).select('-password');
+    if (!teacher) {
+      return res.status(404).json({ message: "Teacher not found" });
+    }
+
+    // Map the response to match frontend expectations
+    const profile = {
+      name: teacher.fullname || '',
+      email: teacher.email || '',
+      phone: teacher.phoneNumber || '',
+      address: teacher.address || '',
+      qualification: teacher.qualification || '',
+      experience: teacher.experience || '',
+      subjects: teacher.subjects || [],
+      profileImage: teacher.img || ''
+    };
+
+    res.status(200).json({ 
+      success: true,
+      profile 
+    });
+  } catch (error) {
+    console.error('Profile fetch error:', error);
+    res.status(500).json({ message: error.message });
+  }
+});
+
+// Get Teacher Profile by ID (for admin/other uses)
 router.get("/teacher/:id", async (req, res) => {
   try {
     const { id } = req.params;
@@ -65,7 +97,41 @@ router.get("/teacher/:id", async (req, res) => {
   }
 });
 
-// Get Student Profile
+// Get authenticated Student Profile (without ID)
+router.get("/student", authenticateStudent, async (req, res) => {
+  try {
+    const student = await Student.findById(req.user.id).select('-password');
+    if (!student) {
+      return res.status(404).json({ message: "Student not found" });
+    }
+
+    // Map the response to match frontend expectations
+    const profile = {
+      name: student.fullname || '',
+      email: student.email || '',
+      phone: student.phoneNumber || '',
+      address: student.address || '',
+      fatherName: student.fathername || '',
+      motherName: student.mothername || '',
+      dateOfBirth: student.dob ? student.dob.toISOString().split('T')[0] : '',
+      gender: student.gender || '',
+      profileImage: student.img || '',
+      class: student.class || '',
+      section: student.section || '',
+      rollNumber: student.rollNumber || ''
+    };
+
+    res.status(200).json({ 
+      success: true,
+      profile 
+    });
+  } catch (error) {
+    console.error('Profile fetch error:', error);
+    res.status(500).json({ message: error.message });
+  }
+});
+
+// Get Student Profile by ID (for admin/teacher uses)
 router.get("/student/:id", async (req, res) => {
   try {
     const { id } = req.params;
@@ -84,7 +150,71 @@ router.get("/student/:id", async (req, res) => {
   }
 });
 
-// Update Teacher Profile
+// Update authenticated Teacher Profile
+router.put("/teacher", authenticateTeacher, async (req, res) => {
+  try {
+    const { 
+      name, 
+      email,
+      phone, 
+      address,
+      qualification,
+      experience,
+      profileImage,
+      password
+    } = req.body;
+
+    const teacher = await Teacher.findById(req.user.id);
+    if (!teacher) {
+      return res.status(404).json({ message: "Teacher not found" });
+    }
+
+    const updateData = {};
+
+    // Update basic fields if provided
+    if (name) updateData.fullname = name.trim();
+    if (email) updateData.email = email.trim();
+    if (phone) updateData.phoneNumber = phone.trim();
+    if (address) updateData.address = address.trim();
+    if (qualification) updateData.qualification = qualification.trim();
+    if (experience) updateData.experience = experience.trim();
+    if (profileImage) updateData.img = profileImage;
+
+    // Handle password update
+    if (password && password.length >= 6) {
+      updateData.password = await bcrypt.hash(password, 10);
+    }
+
+    // Update teacher
+    const updatedTeacher = await Teacher.findByIdAndUpdate(
+      req.user.id,
+      updateData,
+      { new: true }
+    ).select('-password');
+
+    const profile = {
+      name: updatedTeacher.fullname || '',
+      email: updatedTeacher.email || '',
+      phone: updatedTeacher.phoneNumber || '',
+      address: updatedTeacher.address || '',
+      qualification: updatedTeacher.qualification || '',
+      experience: updatedTeacher.experience || '',
+      subjects: updatedTeacher.subjects || [],
+      profileImage: updatedTeacher.img || ''
+    };
+
+    res.status(200).json({ 
+      success: true,
+      message: "Profile updated successfully",
+      profile
+    });
+  } catch (error) {
+    console.error('Profile update error:', error);
+    res.status(500).json({ message: error.message });
+  }
+});
+
+// Update Teacher Profile by ID (for admin use)
 router.put("/teacher/:id", async (req, res) => {
   try {
     const { id } = req.params;
@@ -171,7 +301,79 @@ router.put("/teacher/:id", async (req, res) => {
   }
 });
 
-// Update Student Profile
+// Update authenticated Student Profile
+router.put("/student", authenticateStudent, async (req, res) => {
+  try {
+    const { 
+      name, 
+      email,
+      phone, 
+      address,
+      fatherName,
+      motherName,
+      dateOfBirth,
+      gender,
+      profileImage,
+      password
+    } = req.body;
+
+    const student = await Student.findById(req.user.id);
+    if (!student) {
+      return res.status(404).json({ message: "Student not found" });
+    }
+
+    const updateData = {};
+
+    // Update basic fields if provided
+    if (name) updateData.fullname = name.trim();
+    if (email) updateData.email = email.trim();
+    if (phone) updateData.phoneNumber = phone.trim();
+    if (address) updateData.address = address.trim();
+    if (fatherName) updateData.fathername = fatherName.trim();
+    if (motherName) updateData.mothername = motherName.trim();
+    if (dateOfBirth) updateData.dob = new Date(dateOfBirth);
+    if (gender) updateData.gender = gender;
+    if (profileImage) updateData.img = profileImage;
+
+    // Handle password update
+    if (password && password.length >= 6) {
+      updateData.password = await bcrypt.hash(password, 10);
+    }
+
+    // Update student
+    const updatedStudent = await Student.findByIdAndUpdate(
+      req.user.id,
+      updateData,
+      { new: true }
+    ).select('-password');
+
+    const profile = {
+      name: updatedStudent.fullname || '',
+      email: updatedStudent.email || '',
+      phone: updatedStudent.phoneNumber || '',
+      address: updatedStudent.address || '',
+      fatherName: updatedStudent.fathername || '',
+      motherName: updatedStudent.mothername || '',
+      dateOfBirth: updatedStudent.dob ? updatedStudent.dob.toISOString().split('T')[0] : '',
+      gender: updatedStudent.gender || '',
+      profileImage: updatedStudent.img || '',
+      class: updatedStudent.class || '',
+      section: updatedStudent.section || '',
+      rollNumber: updatedStudent.rollNumber || ''
+    };
+
+    res.status(200).json({ 
+      success: true,
+      message: "Profile updated successfully",
+      profile
+    });
+  } catch (error) {
+    console.error('Profile update error:', error);
+    res.status(500).json({ message: error.message });
+  }
+});
+
+// Update Student Profile by ID (for admin/teacher use)
 router.put("/student/:id", async (req, res) => {
   try {
     const { id } = req.params;

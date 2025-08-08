@@ -45,6 +45,48 @@ router.post("/login", async (req, res) => {
   }
 });
 
+// Teacher signup (self-registration without teacherId)
+router.post("/signup", async (req, res) => {
+  try {
+    const teacherData = req.body;
+    
+    // Check if teacher with email already exists
+    const existingTeacher = await Teacher.findOne({ email: teacherData.email });
+    if (existingTeacher) {
+      return res.status(400).json({ message: "Teacher with this email already exists" });
+    }
+
+    // Check if CNIC already exists
+    const existingCNIC = await Teacher.findOne({ cnicNumber: teacherData.cnicNumber });
+    if (existingCNIC) {
+      return res.status(400).json({ message: "Teacher with this CNIC already exists" });
+    }
+
+    const hashedPassword = await bcrypt.hash(teacherData.password, 10);
+    
+    const teacher = new Teacher({
+      ...teacherData,
+      password: hashedPassword,
+      img: '', // Default to empty, will show default image in frontend
+      // Note: teacherId is not set - will be assigned later by admin
+    });
+
+    await teacher.save();
+
+    res.status(201).json({ 
+      message: "Teacher account created successfully. Please wait for admin to assign your Teacher ID.",
+      teacher: {
+        id: teacher._id,
+        fullname: teacher.fullname,
+        email: teacher.email,
+        phoneNumber: teacher.phoneNumber
+      }
+    });
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+});
+
 // Search student by Student ID (teacher function)
 router.get("/search/student/:studentId", async (req, res) => {
   try {

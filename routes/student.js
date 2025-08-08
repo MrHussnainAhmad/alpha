@@ -48,6 +48,49 @@ router.post("/login", async (req, res) => {
   }
 });
 
+// Student signup (self-registration without studentId)
+router.post("/signup", async (req, res) => {
+  try {
+    const studentData = req.body;
+    
+    // Check if student with email already exists
+    const existingStudent = await Student.findOne({ email: studentData.email });
+    if (existingStudent) {
+      return res.status(400).json({ message: "Student with this email already exists" });
+    }
+
+    // Check if record number already exists
+    const existingRecord = await Student.findOne({ recordNumber: studentData.recordNumber });
+    if (existingRecord) {
+      return res.status(400).json({ message: "Student with this record number already exists" });
+    }
+
+    const hashedPassword = await bcrypt.hash(studentData.password, 10);
+    
+    const student = new Student({
+      ...studentData,
+      password: hashedPassword,
+      img: '', // Default to empty, will show default image in frontend
+      // Note: studentId is not set - will be assigned later by admin or teacher
+    });
+
+    await student.save();
+
+    res.status(201).json({ 
+      message: "Student account created successfully. Please wait for admin/teacher to assign your Student ID.",
+      student: {
+        id: student._id,
+        fullname: student.fullname,
+        email: student.email,
+        class: student.class,
+        section: student.section
+      }
+    });
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+});
+
 // Get student profile
 router.get("/profile/:id", async (req, res) => {
   try {
