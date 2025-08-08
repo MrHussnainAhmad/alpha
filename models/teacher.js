@@ -87,12 +87,6 @@ const teacherSchema = new mongoose.Schema({
   timestamps: true
 });
 
-// Pre-save middleware to generate teacherId if not provided
-teacherSchema.pre('save', function(next) {
-  if (!this.teacherId && this.fullname && this.joiningYear) {
-    this.teacherId = generateTeacherId(this.fullname, this.joiningYear);
-  }
-  next();
-});
+// Note: teacherId will only be assigned by admin, not auto-generated during signup
 
 module.exports = mongoose.model("Teacher", teacherSchema);

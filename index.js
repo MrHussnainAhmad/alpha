@@ -13,6 +13,7 @@ const announcementRoutes = require("./routes/announcements.js");
 const marksRoutes = require("./routes/marks.js");
 const feeVoucherRoutes = require("./routes/feeVouchers.js");
 const classQuestionRoutes = require("./routes/classQuestions.js");
+const profileRoutes = require("./routes/profile.js");
 const { CloudinaryStorage } = require("multer-storage-cloudinary");
 
 // Import models
@@ -70,6 +71,7 @@ app.use("/api/announcements", announcementRoutes);
 app.use("/api/marks", marksRoutes);
 app.use("/api/fee-vouchers", feeVoucherRoutes);
 app.use("/api/class-questions", classQuestionRoutes);
+app.use("/api/profile", profileRoutes);
 
 // Public app configuration endpoint (no authentication required)
 app.get("/api/app-config", async (req, res) => {

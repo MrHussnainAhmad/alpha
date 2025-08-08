@@ -22,6 +22,17 @@ const upload = multer({ storage: storage });
 
 const router = express.Router();
 
+// Helper functions for ID generation
+function generateTeacherId(name, joiningYear) {
+  const cleanName = name.replace(/\s+/g, '').toLowerCase();
+  return `T-${cleanName}-${joiningYear}`;
+}
+
+function generateStudentId(name, studentClass) {
+  const cleanName = name.replace(/\s+/g, '').toLowerCase();
+  return `S-${cleanName}-${studentClass}`;
+}
+
 // Admin signup (only for initial setup or by existing admin)
 router.post("/signup", async (req, res) => {
   try {
@@ -374,6 +385,80 @@ router.post("/cleanup-students", async (req, res) => {
   }
 });
 
+// Assign Teacher ID (admin only)
+router.put("/assign-teacher-id/:id", async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { customTeacherId } = req.body;
+    
+    const teacher = await Teacher.findById(id);
+    if (!teacher) {
+      return res.status(404).json({ message: "Teacher not found" });
+    }
+    
+    // Generate teacher ID if not provided custom one
+    const teacherId = customTeacherId || generateTeacherId(teacher.fullname, teacher.joiningYear);
+    
+    // Check if teacher ID already exists
+    const existingTeacher = await Teacher.findOne({ teacherId, _id: { $ne: id } });
+    if (existingTeacher) {
+      return res.status(400).json({ message: "Teacher ID already exists" });
+    }
+    
+    teacher.teacherId = teacherId;
+    await teacher.save();
+    
+    res.status(200).json({ 
+      message: "Teacher ID assigned successfully",
+      teacher: {
+        id: teacher._id,
+        fullname: teacher.fullname,
+        teacherId: teacher.teacherId,
+        email: teacher.email
+      }
+    });
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+});
+
+// Assign Student ID (admin and teachers can do this)
+router.put("/assign-student-id/:id", async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { customStudentId } = req.body;
+    
+    const student = await Student.findById(id);
+    if (!student) {
+      return res.status(404).json({ message: "Student not found" });
+    }
+    
+    // Generate student ID if not provided custom one
+    const studentId = customStudentId || generateStudentId(student.fullname, student.class);
+    
+    // Check if student ID already exists
+    const existingStudent = await Student.findOne({ studentId, _id: { $ne: id } });
+    if (existingStudent) {
+      return res.status(400).json({ message: "Student ID already exists" });
+    }
+    
+    student.studentId = studentId;
+    await student.save();
+    
+    res.status(200).json({ 
+      message: "Student ID assigned successfully",
+      student: {
+        id: student._id,
+        fullname: student.fullname,
+        studentId: student.studentId,
+        email: student.email
+      }
+    });
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+});
+
 // ===== APP CONFIGURATION ROUTES =====
 
 // Get app configuration
@@ -393,6 +478,7 @@ router.get("/app-config", async (req, res) => {
 router.put("/app-config", async (req, res) => {
   try {
     const { collegeName, logoBase64, logoType } = req.body;
+    console.log('App config update request:', { collegeName, hasLogo: !!logoBase64, logoType });
     
     const updateData = {};
     
@@ -431,11 +517,19 @@ router.put("/app-config", async (req, res) => {
         updateData.logoUrl = uploadResult.secure_url;
         updateData.logoPublicId = uploadResult.public_id;
       } catch (uploadError) {
+        console.error('Upload error:', uploadError);
         return res.status(400).json({ 
           message: "Error uploading logo", 
           error: uploadError.message 
         });
       }
+    }
+    
+    // Ensure we have something to update
+    if (Object.keys(updateData).length === 0) {
+      return res.status(400).json({ 
+        message: "No data provided to update" 
+      });
     }
     
     const updatedConfig = await AppConfig.updateConfig(updateData);

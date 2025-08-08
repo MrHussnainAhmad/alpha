@@ -114,14 +114,10 @@ const studentSchema = new mongoose.Schema({
   timestamps: true
 });
 
-// Pre-save middleware to generate studentId if not provided
+// Pre-save middleware to generate special student ID when roll number is provided
 studentSchema.pre('save', function(next) {
-  if (!this.studentId && this.fullname && this.class) {
-    this.studentId = generateStudentId(this.fullname, this.class);
-  }
-  
-  // Generate special student ID when roll number is provided (for fee voucher submission)
-  if (this.rollNumber && !this.specialStudentId && this.fullname && this.class) {
+  // Only generate special student ID when roll number is provided and student already has studentId
+  if (this.rollNumber && this.studentId && !this.specialStudentId && this.fullname && this.class) {
     this.specialStudentId = generateSpecialStudentId(this.fullname, this.class, this.rollNumber);
   }
   
