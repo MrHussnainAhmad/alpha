@@ -70,7 +70,7 @@ const studentSchema = new mongoose.Schema({
     required: true,
     enum: ['male', 'female', 'other']
   },
-  img: {
+  profilePicture: {
     type: String, // Cloudinary URL
     default: null
   },

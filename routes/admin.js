@@ -235,6 +235,7 @@ router.get("/teachers", async (req, res) => {
 router.get("/students", async (req, res) => {
   try {
     const students = await Student.find({ isActive: true }).select('-password');
+    console.log("Students data sent to frontend:", students.map(s => ({ id: s._id, fullname: s.fullname, profilePicture: s.profilePicture }))); // Log relevant student data
     res.status(200).json({ students });
   } catch (error) {
     res.status(500).json({ message: error.message });

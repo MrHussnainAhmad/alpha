@@ -42,14 +42,7 @@ const profileStorage = new CloudinaryStorage({
   },
 });
 
-// Storage configuration for fee vouchers
-const voucherStorage = new CloudinaryStorage({
-  cloudinary: cloudinary,
-  params: {
-    folder: "fee-vouchers",
-    allowed_formats: ["jpg", "jpeg", "png", "pdf"],
-  },
-});
+
 
 // Storage configuration for announcement images
 const announcementStorage = new CloudinaryStorage({
@@ -61,7 +54,7 @@ const announcementStorage = new CloudinaryStorage({
 });
 
 const uploadProfile = multer({ storage: profileStorage });
-const uploadVoucher = multer({ storage: voucherStorage });
+
 const uploadAnnouncement = multer({ storage: announcementStorage });
 
 // Use routes with specific prefixes
@@ -82,7 +75,8 @@ app.get("/api/app-config", async (req, res) => {
       success: true,
       config: {
         collegeName: config.collegeName,
-        logoUrl: config.logoUrl
+        logoUrl: config.logoUrl,
+        phoneNumber: config.phoneNumber,
       }
     });
   } catch (error) {
@@ -91,7 +85,8 @@ app.get("/api/app-config", async (req, res) => {
       success: true,
       config: {
         collegeName: 'Alpha Education',
-        logoUrl: ''
+        logoUrl: '',
+        phoneNumber: ''
       }
     });
   }
@@ -112,19 +107,7 @@ app.post("/api/upload-profile", uploadProfile.single("image"), (req, res) => {
   }
 });
 
-app.post("/api/upload-voucher", uploadVoucher.single("voucher"), (req, res) => {
-  try {
-    if (!req.file) {
-      return res.status(400).json({ message: "No voucher uploaded" });
-    }
-    res.status(200).json({ 
-      message: "Voucher uploaded successfully",
-      voucherUrl: req.file.path 
-    });
-  } catch (error) {
-    res.status(500).json({ message: error.message });
-  }
-});
+
 
 // Upload multiple images for announcements
 app.post("/api/upload-announcement-images", uploadAnnouncement.array("images", 5), (req, res) => {

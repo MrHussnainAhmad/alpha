@@ -116,7 +116,7 @@ router.get("/student", authenticateStudent, async (req, res) => {
       motherName: student.mothername || '',
       dateOfBirth: student.dob ? student.dob.toISOString().split('T')[0] : '',
       gender: student.gender || '',
-      profileImage: student.img || '',
+      profileImage: student.profilePicture || '',
       class: student.class || '',
       section: student.section || '',
       rollNumber: student.rollNumber || ''
@@ -378,8 +378,8 @@ router.put("/student", authenticateStudent, async (req, res) => {
       console.log('profileImageBase64 length:', profileImageBase64 ? profileImageBase64.length : '0');
       try {
         // Delete old image if exists
-        if (student.img) {
-          const oldPublicId = student.img.split('/').pop().split('.')[0];
+        if (student.profilePicture) {
+          const oldPublicId = student.profilePicture.split('/').pop().split('.')[0];
           await deleteImageFromCloudinary(`school-app/profiles/${oldPublicId}`);
         }
 
@@ -388,7 +388,8 @@ router.put("/student", authenticateStudent, async (req, res) => {
           `data:${profileImageType};base64,${profileImageBase64}`,
           'profiles'
         );
-        updateData.img = imageResult.url;
+        updateData.profilePicture = imageResult.url;
+        console.log('Backend: updateData.profilePicture set to:', updateData.profilePicture);
       } catch (error) {
         return res.status(400).json({ 
           message: "Error uploading profile image", 
@@ -418,7 +419,7 @@ router.put("/student", authenticateStudent, async (req, res) => {
       motherName: updatedStudent.mothername || '',
       dateOfBirth: updatedStudent.dob ? updatedStudent.dob.toISOString().split('T')[0] : '',
       gender: updatedStudent.gender || '',
-      profileImage: updatedStudent.img || '',
+      profileImage: updatedStudent.profilePicture || '',
       class: updatedStudent.class || '',
       section: updatedStudent.section || '',
       rollNumber: updatedStudent.rollNumber || ''
@@ -478,8 +479,8 @@ router.put("/student/:id", async (req, res) => {
     if (profileImageBase64) {
       try {
         // Delete old image if exists
-        if (student.img) {
-          const oldPublicId = student.img.split('/').pop().split('.')[0];
+        if (student.profilePicture) {
+          const oldPublicId = student.profilePicture.split('/').pop().split('.')[0];
           await deleteImageFromCloudinary(`school-app/profiles/${oldPublicId}`);
         }
 
@@ -488,7 +489,7 @@ router.put("/student/:id", async (req, res) => {
           `data:image/jpeg;base64,${profileImageBase64}`,
           'profiles'
         );
-        updateData.img = imageResult.url;
+        updateData.profilePicture = imageResult.url;
       } catch (error) {
         return res.status(400).json({ 
           message: "Error uploading profile image", 
