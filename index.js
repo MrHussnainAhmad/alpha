@@ -15,6 +15,9 @@ const feeVoucherRoutes = require("./routes/feeVouchers.js");
 const classQuestionRoutes = require("./routes/classQuestions.js");
 const { CloudinaryStorage } = require("multer-storage-cloudinary");
 
+// Import models
+const AppConfig = require("./models/appConfig");
+
 dotenv.config();
 
 const app = express();
@@ -67,6 +70,29 @@ app.use("/api/announcements", announcementRoutes);
 app.use("/api/marks", marksRoutes);
 app.use("/api/fee-vouchers", feeVoucherRoutes);
 app.use("/api/class-questions", classQuestionRoutes);
+
+// Public app configuration endpoint (no authentication required)
+app.get("/api/app-config", async (req, res) => {
+  try {
+    const config = await AppConfig.getConfig();
+    res.status(200).json({ 
+      success: true,
+      config: {
+        collegeName: config.collegeName,
+        logoUrl: config.logoUrl
+      }
+    });
+  } catch (error) {
+    console.error('Error fetching app config:', error);
+    res.status(200).json({ 
+      success: true,
+      config: {
+        collegeName: 'Alpha Education',
+        logoUrl: ''
+      }
+    });
+  }
+});
 
 // Image upload endpoints
 app.post("/api/upload-profile", uploadProfile.single("image"), (req, res) => {
