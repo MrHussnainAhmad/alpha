@@ -4,7 +4,6 @@ const Student = require("../models/student");
 const bcrypt = require("bcrypt");
 const jwt = require("jsonwebtoken");
 const { authenticateTeacher } = require('../middleware/auth');
-const jwt = require("jsonwebtoken");
 
 const router = express.Router();
 
