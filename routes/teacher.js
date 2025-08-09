@@ -325,6 +325,121 @@ router.get('/verified-students', authenticateTeacher, async (req, res) => {
   }
 });
 
+// Get students from teacher's assigned classes
+router.get('/my-class-students', authenticateTeacher, async (req, res) => {
+  try {
+    const mongoose = require('mongoose');
+    const teacherId = req.user.id; // Get teacher ID from authenticated user
+    const { classId, section } = req.query;
+
+    console.log('🔍 MY-CLASS-STUDENTS API CALLED');
+    console.log('📱 Request from mobile app');
+    console.log('👤 Teacher ID:', teacherId);
+    console.log('🔍 Query params - classId:', classId, 'section:', section);
+    console.log('⏰ Timestamp:', new Date().toISOString());
+
+    // First, get the teacher to see which classes they are assigned to
+    const teacher = await Teacher.findById(teacherId).select('classes');
+    if (!teacher) {
+      return res.status(404).json({ message: 'Teacher not found' });
+    }
+
+    console.log('Teacher classes:', teacher.classes);
+
+    if (!teacher.classes || teacher.classes.length === 0) {
+      return res.status(200).json({ 
+        students: [], 
+        message: 'No classes assigned to this teacher yet'
+      });
+    }
+
+    // Convert teacher.classes to ObjectIds for proper comparison
+    const teacherClassIds = teacher.classes.map(id => 
+      typeof id === 'string' ? new mongoose.Types.ObjectId(id) : id
+    );
+
+    console.log('Teacher class IDs (ObjectIds):', teacherClassIds);
+
+    // Build the query to find students in teacher's assigned classes
+    let query = { 
+      class: { $in: teacherClassIds }, // Students in any of teacher's classes
+      isVerified: true, // Only verified students
+      isActive: true // Only active students
+    };
+
+    // If a specific class is requested, filter by that class (if teacher is assigned to it)
+    if (classId) {
+      const requestedClassId = new mongoose.Types.ObjectId(classId);
+      const isAssigned = teacherClassIds.some(id => id.equals(requestedClassId));
+      
+      if (isAssigned) {
+        query.class = requestedClassId;
+      } else {
+        return res.status(403).json({ 
+          message: 'You are not assigned to this class'
+        });
+      }
+    }
+
+    // Filter by section if provided
+    if (section) {
+      query.section = section;
+      // If section indicates gender-based grouping
+      if (section.toLowerCase() === 'boys') {
+        query.gender = 'male';
+      } else if (section.toLowerCase() === 'girls') {
+        query.gender = 'female';
+      }
+    }
+
+    console.log('Final student query:', JSON.stringify(query, null, 2));
+    
+    // Fetch students with class information
+    const students = await Student.find(query)
+      .populate('class', 'name')
+      .select('-password')
+      .sort({ fullname: 1 }); // Sort alphabetically by name
+
+    console.log(`Found ${students.length} students`);
+    if (students.length > 0) {
+      console.log('First student class info:', students[0].class);
+    }
+
+    // Group students by class for better organization
+    const studentsByClass = students.reduce((acc, student) => {
+      const className = student.class ? student.class.name : 'No Class';
+      if (!acc[className]) {
+        acc[className] = [];
+      }
+      acc[className].push(student);
+      return acc;
+    }, {});
+
+    const response = {
+      students,
+      studentsByClass,
+      totalStudents: students.length,
+      assignedClasses: teacher.classes.length,
+      teacherClassIds: teacherClassIds, // For debugging
+      query: query // For debugging
+    };
+    
+    console.log('📤 SENDING RESPONSE TO MOBILE APP:');
+    console.log('📊 Total students found:', students.length);
+    console.log('🏫 Classes with students:', Object.keys(studentsByClass));
+    if (students.length > 0) {
+      console.log('👥 First student:', students[0].fullname, '- Class:', students[0].class?.name);
+    }
+    console.log('✅ Response sent successfully');
+    console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+    
+    res.status(200).json(response);
+  } catch (error) {
+    console.error('Error fetching teacher class students:', error);
+    res.status(500).json({ message: 'Server error', error: error.message });
+  }
+});
+
 // Assign student to class
 router.post('/assign-student-class', authenticateTeacher, async (req, res) => {
   try {
@@ -414,6 +529,80 @@ router.get("/subjects", async (req, res) => {
     res.status(200).json({ subjects });
   } catch (error) {
     res.status(500).json({ message: error.message });
+  }
+});
+
+// Debug endpoint to check teacher and student data
+router.get('/debug-data', authenticateTeacher, async (req, res) => {
+  try {
+    const mongoose = require('mongoose');
+    const teacherId = req.user.id;
+    
+    // Get teacher data
+    const teacher = await Teacher.findById(teacherId).populate('classes', 'name');
+    
+    // Get all students with their class data
+    const allStudents = await Student.find({}).populate('class', 'name').select('fullname class isVerified isActive');
+    
+    // Get only students in teacher's classes
+    let teacherStudents = [];
+    if (teacher && teacher.classes && teacher.classes.length > 0) {
+      const teacherClassIds = teacher.classes.map(cls => cls._id);
+      teacherStudents = await Student.find({ 
+        class: { $in: teacherClassIds }
+      }).populate('class', 'name').select('fullname class isVerified isActive');
+    }
+    
+    res.status(200).json({
+      teacher: {
+        id: teacher._id,
+        fullname: teacher.fullname,
+        classes: teacher.classes
+      },
+      allStudentsCount: allStudents.length,
+      teacherStudentsCount: teacherStudents.length,
+      allStudents: allStudents.slice(0, 5), // First 5 students
+      teacherStudents: teacherStudents.slice(0, 5) // First 5 teacher students
+    });
+  } catch (error) {
+    console.error('Debug endpoint error:', error);
+    res.status(500).json({ message: 'Server error', error: error.message });
+  }
+});
+
+// Simple test to check if student has the expected class format
+router.get('/simple-test', authenticateTeacher, async (req, res) => {
+  try {
+    const mongoose = require('mongoose');
+    const teacherId = req.user.id;
+    
+    // Get teacher
+    const teacher = await Teacher.findById(teacherId);
+    console.log('Teacher found:', !!teacher);
+    console.log('Teacher classes:', teacher?.classes);
+    
+    // Get first few students to see their structure
+    const students = await Student.find({}).limit(3).select('fullname class isVerified isActive');
+    console.log('Sample students:', students);
+    
+    // Check if student's class field matches teacher's class
+    if (teacher?.classes?.length > 0 && students.length > 0) {
+      const teacherClassId = teacher.classes[0].toString();
+      const studentClassId = students[0]?.class?.toString();
+      console.log('Teacher first class ID:', teacherClassId);
+      console.log('Student first class ID:', studentClassId);
+      console.log('Do they match?', teacherClassId === studentClassId);
+    }
+    
+    res.json({
+      teacherExists: !!teacher,
+      teacherClasses: teacher?.classes || [],
+      sampleStudents: students,
+      message: 'Check console for detailed logs'
+    });
+  } catch (error) {
+    console.error('Simple test error:', error);
+    res.status(500).json({ error: error.message });
   }
 });
 

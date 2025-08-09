@@ -91,4 +91,69 @@ router.delete('/:id', auth.authenticateAdmin, async (req, res) => {
   }
 });
 
+// Get class with assigned teachers
+router.get('/:id/teachers', auth.authenticateAdmin, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const Teacher = require('../models/teacher');
+    
+    // Find the class first
+    const classData = await Class.findById(id);
+    if (!classData) {
+      return res.status(404).json({ message: 'Class not found.' });
+    }
+    
+    // Find teachers assigned to this class
+    const teachers = await Teacher.find({ 
+      classes: id,
+      isVerified: true 
+    }).populate('classes', 'name').select('-password');
+    
+    res.status(200).json({ 
+      class: classData,
+      teachers 
+    });
+  } catch (error) {
+    console.error('Error fetching class teachers:', error);
+    res.status(500).json({ message: 'Server error' });
+  }
+});
+
+// Get class statistics
+router.get('/:id/stats', auth.authenticateAdmin, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const Teacher = require('../models/teacher');
+    const Student = require('../models/student');
+    
+    // Find the class first
+    const classData = await Class.findById(id);
+    if (!classData) {
+      return res.status(404).json({ message: 'Class not found.' });
+    }
+    
+    // Get statistics
+    const teachersCount = await Teacher.countDocuments({ 
+      classes: id,
+      isVerified: true 
+    });
+    
+    const studentsCount = await Student.countDocuments({ 
+      class: id,
+      isActive: true 
+    });
+    
+    res.status(200).json({ 
+      class: classData,
+      stats: {
+        teachers: teachersCount,
+        students: studentsCount
+      }
+    });
+  } catch (error) {
+    console.error('Error fetching class stats:', error);
+    res.status(500).json({ message: 'Server error' });
+  }
+});
+
 module.exports = router;

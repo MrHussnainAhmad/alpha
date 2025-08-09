@@ -561,6 +561,231 @@ router.post('/unassign-class', authenticateAdmin, async (req, res) => {
   }
 });
 
+// Get teachers with assigned classes (for subject management)
+router.get('/teachers-with-classes', authenticateAdmin, async (req, res) => {
+  try {
+    const teachers = await Teacher.find({ 
+      isVerified: true, 
+      classes: { $exists: true, $ne: [] } 
+    }).populate('classes', 'name').select('-password');
+    
+    res.status(200).json({ teachers });
+  } catch (error) {
+    console.error('Error fetching teachers with classes:', error);
+    res.status(500).json({ message: 'Server error' });
+  }
+});
+
+// Assign subjects to teacher
+router.post('/assign-subjects', authenticateAdmin, async (req, res) => {
+  try {
+    const { teacherId, subjects } = req.body;
+
+    if (!subjects || !Array.isArray(subjects) || subjects.length === 0) {
+      return res.status(400).json({ message: 'Please provide subjects to assign.' });
+    }
+
+    const teacher = await Teacher.findById(teacherId);
+    if (!teacher) {
+      return res.status(404).json({ message: 'Teacher not found.' });
+    }
+
+    if (!teacher.isVerified) {
+      return res.status(400).json({ message: 'Teacher must be verified to assign subjects.' });
+    }
+
+    if (!teacher.classes || teacher.classes.length === 0) {
+      return res.status(400).json({ message: 'Teacher must have assigned classes before assigning subjects.' });
+    }
+
+    // Remove duplicates and add new subjects
+    const uniqueSubjects = [...new Set([...teacher.subjects, ...subjects])];
+    teacher.subjects = uniqueSubjects;
+    await teacher.save();
+    
+    // Populate the teacher data for response
+    await teacher.populate('classes', 'name');
+
+    res.status(200).json({ 
+      message: 'Subjects assigned successfully.', 
+      teacher 
+    });
+  } catch (error) {
+    console.error('Error assigning subjects:', error);
+    res.status(500).json({ message: 'Server error' });
+  }
+});
+
+// Remove subjects from teacher
+router.post('/remove-subjects', authenticateAdmin, async (req, res) => {
+  try {
+    const { teacherId, subjects } = req.body;
+
+    if (!subjects || !Array.isArray(subjects) || subjects.length === 0) {
+      return res.status(400).json({ message: 'Please provide subjects to remove.' });
+    }
+
+    const teacher = await Teacher.findById(teacherId);
+    if (!teacher) {
+      return res.status(404).json({ message: 'Teacher not found.' });
+    }
+
+    // Remove specified subjects
+    teacher.subjects = teacher.subjects.filter(subject => !subjects.includes(subject));
+    await teacher.save();
+    
+    // Populate the teacher data for response
+    await teacher.populate('classes', 'name');
+
+    res.status(200).json({ 
+      message: 'Subjects removed successfully.', 
+      teacher 
+    });
+  } catch (error) {
+    console.error('Error removing subjects:', error);
+    res.status(500).json({ message: 'Server error' });
+  }
+});
+
+// Search verified teachers with optional filters
+router.get('/search-teachers', authenticateAdmin, async (req, res) => {
+  try {
+    const { q, hasClasses } = req.query;
+    
+    let searchQuery = { isVerified: true };
+    
+    // Add text search if query provided
+    if (q && q.trim()) {
+      const searchTerm = q.trim();
+      searchQuery.$or = [
+        { fullname: { $regex: searchTerm, $options: 'i' } },
+        { teacherId: { $regex: searchTerm, $options: 'i' } },
+        { email: { $regex: searchTerm, $options: 'i' } }
+      ];
+    }
+    
+    // Filter by teachers with classes if requested
+    if (hasClasses === 'true') {
+      searchQuery.classes = { $exists: true, $ne: [] };
+    }
+    
+    const teachers = await Teacher.find(searchQuery)
+      .populate('classes', 'name')
+      .select('-password')
+      .sort({ fullname: 1 });
+    
+    res.status(200).json({ teachers });
+  } catch (error) {
+    console.error('Error searching teachers:', error);
+    res.status(500).json({ message: 'Server error' });
+  }
+});
+
+// Assign subjects to teacher
+router.post('/assign-subjects', authenticateAdmin, async (req, res) => {
+  try {
+    const { teacherId, subjects } = req.body;
+
+    if (!subjects || !Array.isArray(subjects) || subjects.length === 0) {
+      return res.status(400).json({ message: 'Please provide subjects to assign.' });
+    }
+
+    const teacher = await Teacher.findById(teacherId);
+    if (!teacher) {
+      return res.status(404).json({ message: 'Teacher not found.' });
+    }
+
+    if (!teacher.isVerified) {
+      return res.status(400).json({ message: 'Teacher must be verified to assign subjects.' });
+    }
+
+    if (!teacher.classes || teacher.classes.length === 0) {
+      return res.status(400).json({ message: 'Teacher must have assigned classes before assigning subjects.' });
+    }
+
+    // Remove duplicates and add new subjects
+    const uniqueSubjects = [...new Set([...teacher.subjects, ...subjects])];
+    teacher.subjects = uniqueSubjects;
+    await teacher.save();
+    
+    // Populate the teacher data for response
+    await teacher.populate('classes', 'name');
+
+    res.status(200).json({ 
+      message: 'Subjects assigned successfully.', 
+      teacher 
+    });
+  } catch (error) {
+    console.error('Error assigning subjects:', error);
+    res.status(500).json({ message: 'Server error' });
+  }
+});
+
+// Remove subjects from teacher
+router.post('/remove-subjects', authenticateAdmin, async (req, res) => {
+  try {
+    const { teacherId, subjects } = req.body;
+
+    if (!subjects || !Array.isArray(subjects) || subjects.length === 0) {
+      return res.status(400).json({ message: 'Please provide subjects to remove.' });
+    }
+
+    const teacher = await Teacher.findById(teacherId);
+    if (!teacher) {
+      return res.status(404).json({ message: 'Teacher not found.' });
+    }
+
+    // Remove specified subjects
+    teacher.subjects = teacher.subjects.filter(subject => !subjects.includes(subject));
+    await teacher.save();
+    
+    // Populate the teacher data for response
+    await teacher.populate('classes', 'name');
+
+    res.status(200).json({ 
+      message: 'Subjects removed successfully.', 
+      teacher 
+    });
+  } catch (error) {
+    console.error('Error removing subjects:', error);
+    res.status(500).json({ message: 'Server error' });
+  }
+});
+
+// Search verified teachers with optional filters
+router.get('/search-teachers', authenticateAdmin, async (req, res) => {
+  try {
+    const { q, hasClasses } = req.query;
+    
+    let searchQuery = { isVerified: true };
+    
+    // Add text search if query provided
+    if (q && q.trim()) {
+      const searchTerm = q.trim();
+      searchQuery.$or = [
+        { fullname: { $regex: searchTerm, $options: 'i' } },
+        { teacherId: { $regex: searchTerm, $options: 'i' } },
+        { email: { $regex: searchTerm, $options: 'i' } }
+      ];
+    }
+    
+    // Filter by teachers with classes if requested
+    if (hasClasses === 'true') {
+      searchQuery.classes = { $exists: true, $ne: [] };
+    }
+    
+    const teachers = await Teacher.find(searchQuery)
+      .populate('classes', 'name')
+      .select('-password')
+      .sort({ fullname: 1 });
+    
+    res.status(200).json({ teachers });
+  } catch (error) {
+    console.error('Error searching teachers:', error);
+    res.status(500).json({ message: 'Server error' });
+  }
+});
+
 // Clean up teachers without teacherId (should run periodically)
 router.post("/cleanup-teachers", async (req, res) => {
   try {
