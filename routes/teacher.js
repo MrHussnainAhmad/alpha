@@ -128,7 +128,8 @@ router.post("/create-student", async (req, res) => {
     
     const student = new Student({
       ...studentData,
-      password: hashedPassword
+      password: hashedPassword,
+      class: studentData.class || null // Ensure class is stored as ObjectId or null
     });
 
     await student.save();
@@ -246,6 +247,12 @@ router.put("/update-student/:id", async (req, res) => {
     
     // Don't allow password update through this route
     delete updateData.password;
+
+    // Handle class update if provided
+    if (updateData.class) {
+      // If it's an empty string, set to null
+      updateData.class = updateData.class === '' ? null : updateData.class;
+    }
     
     const student = await Student.findByIdAndUpdate(
       id,
@@ -291,21 +298,97 @@ router.put("/change-password", async (req, res) => {
   }
 });
 
+// Get all verified students (for class assignment)
+router.get('/verified-students', authenticateTeacher, async (req, res) => {
+  try {
+    const { classId, section } = req.query;
+    const query = { isVerified: true };
+
+    if (classId) {
+      query.class = classId;
+    }
+    if (section) {
+      query.section = section;
+      if (section.toLowerCase() === 'boys') {
+        query.gender = 'male';
+      } else if (section.toLowerCase() === 'girls') {
+        query.gender = 'female';
+      }
+    }
+
+    console.log('Backend query for students:', query);
+    const students = await Student.find(query).populate('class', 'name').select('-password');
+    res.status(200).json({ students });
+  } catch (error) {
+    console.error('Error fetching verified students:', error);
+    res.status(500).json({ message: 'Server error' });
+  }
+});
+
+// Assign student to class
+router.post('/assign-student-class', authenticateTeacher, async (req, res) => {
+  try {
+    const { studentId, classId } = req.body;
+
+    const student = await Student.findById(studentId);
+    if (!student) {
+      return res.status(404).json({ message: 'Student not found.' });
+    }
+
+    // Check if student is already assigned to this class
+    if (student.class && student.class.toString() === classId) {
+      return res.status(400).json({ message: 'Student already assigned to this class.' });
+    }
+
+    student.class = classId;
+    await student.save();
+    
+    // Populate the class name for the response
+    await student.populate('class', 'name');
+
+    res.status(200).json({ message: 'Student assigned to class successfully.', student });
+  } catch (error) {
+    console.error('Error assigning student to class:', error);
+    res.status(500).json({ message: 'Server error' });
+  }
+});
+
+// Unassign student from class
+router.post('/unassign-student-class', authenticateTeacher, async (req, res) => {
+  try {
+    const { studentId } = req.body;
+
+    const student = await Student.findById(studentId);
+    if (!student) {
+      return res.status(404).json({ message: 'Student not found.' });
+    }
+
+    student.class = null; // Set class to null to unassign
+    await student.save();
+
+    res.status(200).json({ message: 'Student unassigned from class successfully.', student });
+  } catch (error) {
+    console.error('Error unassigning student from class:', error);
+    res.status(500).json({ message: 'Server error' });
+  }
+});
+
+
+
+
+
 // Get teacher dashboard stats
 router.get("/dashboard-stats", authenticateTeacher, async (req, res) => {
   try {
     const teacherId = req.user.id; // Authenticated teacher's ID
 
-    // Count all active students (temporary, until teacher-class/section association is clear)
-    const studentCount = await Student.countDocuments({ isActive: true });
+    const teacher = await Teacher.findById(teacherId).populate('classes');
+    if (!teacher) {
+      return res.status(404).json({ message: "Teacher not found" });
+    }
 
-    // Count unique classes (unique combinations of class and section)
-    const uniqueClasses = await Student.aggregate([
-      { $match: { isActive: true } },
-      { $group: { _id: { class: "$class", section: "$section" } } },
-      { $count: "count" }
-    ]);
-    const classCount = uniqueClasses.length > 0 ? uniqueClasses[0].count : 0;
+    const studentCount = await Student.countDocuments({ isActive: true }); // Still count all students for now
+    const classCount = teacher.classes.length;
 
     // Placeholder for assignments
     const assignmentCount = 0; // To be implemented
@@ -322,6 +405,20 @@ router.get("/dashboard-stats", authenticateTeacher, async (req, res) => {
     console.error('Error fetching teacher dashboard stats:', error);
     res.status(500).json({ message: error.message });
   }
+});
+
+// Get all unique subjects from all teachers
+router.get("/subjects", async (req, res) => {
+  try {
+    const subjects = await Teacher.distinct("subjects");
+    res.status(200).json({ subjects });
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+});
+
+router.get("/test", (req, res) => {
+  res.send("Test route is working");
 });
 
 module.exports = router;

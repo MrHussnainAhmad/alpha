@@ -1,4 +1,5 @@
 const mongoose = require("mongoose");
+const Class = require("./class");
 
 // Function to generate Student ID: S-name-class
 function generateStudentId(name, studentClass) {
@@ -80,19 +81,26 @@ const studentSchema = new mongoose.Schema({
     trim: true
   },
   class: {
-    type: String,
-    required: true,
-    trim: true
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'Class',
+    default: null
   },
   section: {
     type: String,
-    required: true,
     trim: true
   },
   rollNumber: {
     type: String,
     sparse: true, // Only required when generating special ID
     trim: true
+  },
+  currentFee: {
+    type: Number,
+    default: 0,
+  },
+  futureFee: {
+    type: Number,
+    default: 0,
   },
   feeVoucherSubmitted: {
     type: Boolean,
@@ -129,12 +137,15 @@ const studentSchema = new mongoose.Schema({
 });
 
 // Pre-save middleware to generate special student ID when roll number is provided
-studentSchema.pre('save', function(next) {
+studentSchema.pre('save', async function(next) {
   // Generate special student ID when roll number is provided and student already has studentId
   if (this.rollNumber && this.studentId && this.fullname && this.class) {
     // Regenerate if rollNumber or class changed
     if (!this.specialStudentId || this.isModified('rollNumber') || this.isModified('class')) {
-      this.specialStudentId = generateSpecialStudentId(this.fullname, this.class, this.rollNumber);
+      const studentClass = await Class.findById(this.class);
+      if (studentClass) {
+        this.specialStudentId = generateSpecialStudentId(this.fullname, studentClass.name, this.rollNumber);
+      }
     }
   }
   
@@ -142,11 +153,13 @@ studentSchema.pre('save', function(next) {
 });
 
 // Method to assign special ID for fee voucher submission
-studentSchema.methods.assignSpecialIdForFeeVoucher = function(rollNumber) {
+studentSchema.methods.assignSpecialIdForFeeVoucher = async function(rollNumber) {
   if (!this.specialStudentId) {
     this.rollNumber = rollNumber;
-    // Use existing studentId and just append rollNumber
-    this.specialStudentId = `${this.studentId}-${rollNumber}`;
+    const studentClass = await Class.findById(this.class);
+    if (studentClass) {
+      this.specialStudentId = generateSpecialStudentId(this.fullname, studentClass.name, this.rollNumber);
+    }
   }
   return this.specialStudentId;
 };

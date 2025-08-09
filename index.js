@@ -7,6 +7,7 @@ const cloudinary = require("cloudinary");
 const multer = require("multer");
 // Import all route files
 const adminRoutes = require("./routes/admin.js");
+const classRoutes = require("./routes/classes.js");
 const teacherRoutes = require("./routes/teacher.js");
 const studentRoutes = require("./routes/student.js");
 const announcementRoutes = require("./routes/announcements.js");
@@ -60,12 +61,15 @@ const uploadAnnouncement = multer({ storage: announcementStorage });
 // Use routes with specific prefixes
 app.use("/api/admin", adminRoutes);
 app.use("/api/teacher", teacherRoutes);
-app.use("/api/student", studentRoutes);
 app.use("/api/announcements", announcementRoutes);
 app.use("/api/marks", marksRoutes);
 app.use("/api/fee-vouchers", feeVoucherRoutes);
 app.use("/api/class-questions", classQuestionRoutes);
 app.use("/api/profile", profileRoutes);
+app.use("/api/student", studentRoutes);
+app.use("/api/classes", classRoutes);
+
+printRoutes(app);
 
 // Public app configuration endpoint (no authentication required)
 app.get("/api/app-config", async (req, res) => {
@@ -129,6 +133,21 @@ app.post("/api/upload-announcement-images", uploadAnnouncement.array("images", 5
 
 // Import cleanup scheduler
 const { startScheduledCleanup } = require("./scripts/cleanupUnverifiedAccounts");
+
+function printRoutes(app) {
+  console.log('Registered routes:');
+  app._router.stack.forEach((middleware) => {
+    if (middleware.route) { // routes registered directly on the app
+      console.log(middleware.route.path, middleware.route.methods);
+    } else if (middleware.name === 'router') { // router middleware 
+      middleware.handle.stack.forEach((handler) => {
+        if (handler.route) {
+          console.log(handler.route.path, handler.route.methods);
+        }
+      });
+    }
+  });
+}
 
 mongoose
   .connect(process.env.MONGO_URL, {

@@ -38,9 +38,9 @@ const teacherSchema = new mongoose.Schema({
     required: true,
     validate: {
       validator: function(v) {
-        return /^\d{11}$/.test(v); // Validates 11 digits
+        return /^\d{13}$/.test(v); // Validates 13 digits
       },
-      message: 'CNIC must be exactly 11 digits'
+      message: 'CNIC must be exactly 13 digits'
     },
     unique: true
   },
@@ -75,6 +75,10 @@ const teacherSchema = new mongoose.Schema({
     type: String,
     trim: true,
   }],
+  classes: [{
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'Class',
+  }],
   whatsappNumber: {
     type: String,
     required: true,
@@ -85,6 +89,14 @@ const teacherSchema = new mongoose.Schema({
     required: true,
     min: 1990,
     max: new Date().getFullYear() + 1
+  },
+  currentPay: {
+    type: Number,
+    default: 0,
+  },
+  futurePay: {
+    type: Number,
+    default: 0,
   },
   isActive: {
     type: Boolean,

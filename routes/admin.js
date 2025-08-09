@@ -202,7 +202,8 @@ router.post("/create-student", async (req, res) => {
     
     const student = new Student({
       ...studentData,
-      password: hashedPassword
+      password: hashedPassword,
+      class: studentData.class || null // Ensure class is stored as ObjectId or null
     });
 
     await student.save();
@@ -234,7 +235,7 @@ router.get("/teachers", async (req, res) => {
 // Get all students (admin function)
 router.get("/students", async (req, res) => {
   try {
-    const students = await Student.find({ isActive: true }).select('-password');
+    const students = await Student.find({ isActive: true }).populate('class', 'name').select('-password');
     console.log("Students data sent to frontend:", students.map(s => ({ id: s._id, fullname: s.fullname, profilePicture: s.profilePicture }))); // Log relevant student data
     res.status(200).json({ students });
   } catch (error) {
@@ -263,6 +264,43 @@ router.put("/update-teacher/:id", async (req, res) => {
 
     res.status(200).json({ 
       message: "Teacher updated successfully",
+      teacher 
+    });
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+});
+
+// Update teacher pay (admin function)
+router.put("/update-teacher-pay/:id", authenticateAdmin, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { currentPay, futurePay } = req.body;
+
+    const updateData = {};
+    if (currentPay !== undefined) {
+      updateData.currentPay = currentPay;
+    }
+    if (futurePay !== undefined) {
+      updateData.futurePay = futurePay;
+    }
+
+    if (Object.keys(updateData).length === 0) {
+      return res.status(400).json({ message: "No pay data provided for update" });
+    }
+
+    const teacher = await Teacher.findByIdAndUpdate(
+      id,
+      updateData,
+      { new: true }
+    ).select('-password');
+
+    if (!teacher) {
+      return res.status(404).json({ message: "Teacher not found" });
+    }
+
+    res.status(200).json({ 
+      message: "Teacher pay updated successfully",
       teacher 
     });
   } catch (error) {
@@ -345,6 +383,12 @@ router.put("/update-student/:id", async (req, res) => {
     
     // Don't allow password update through this route
     delete updateData.password;
+
+    // Handle class update if provided
+    if (updateData.class) {
+      // If it's an empty string, set to null
+      updateData.class = updateData.class === '' ? null : updateData.class;
+    }
     
     const student = await Student.findByIdAndUpdate(
       id,
@@ -358,6 +402,43 @@ router.put("/update-student/:id", async (req, res) => {
 
     res.status(200).json({ 
       message: "Student updated successfully",
+      student 
+    });
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+});
+
+// Update student fee (admin function)
+router.put("/update-student-fee/:id", authenticateAdmin, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { currentFee, futureFee } = req.body;
+
+    const updateData = {};
+    if (currentFee !== undefined) {
+      updateData.currentFee = currentFee;
+    }
+    if (futureFee !== undefined) {
+      updateData.futureFee = futureFee;
+    }
+
+    if (Object.keys(updateData).length === 0) {
+      return res.status(400).json({ message: "No fee data provided for update" });
+    }
+
+    const student = await Student.findByIdAndUpdate(
+      id,
+      updateData,
+      { new: true }
+    ).select('-password');
+
+    if (!student) {
+      return res.status(404).json({ message: "Student not found" });
+    }
+
+    res.status(200).json({ 
+      message: "Student fee updated successfully",
       student 
     });
   } catch (error) {
@@ -410,6 +491,73 @@ router.delete("/delete-student/:id", async (req, res) => {
     res.status(200).json({ message: "Student deleted successfully" });
   } catch (error) {
     res.status(500).json({ message: error.message });
+  }
+});
+
+// Get all verified teachers (for class assignment)
+router.get('/verified-teachers', authenticateAdmin, async (req, res) => {
+  try {
+    const teachers = await Teacher.find({ isVerified: true }).populate('classes', 'name').select('-password');
+    res.status(200).json({ teachers });
+  } catch (error) {
+    console.error('Error fetching verified teachers:', error);
+    res.status(500).json({ message: 'Server error' });
+  }
+});
+
+// Assign class to teacher
+router.post('/assign-class', authenticateAdmin, async (req, res) => {
+  try {
+    const { teacherId, classId } = req.body;
+
+    const teacher = await Teacher.findById(teacherId);
+    if (!teacher) {
+      return res.status(404).json({ message: 'Teacher not found.' });
+    }
+
+    // Check if class is already assigned
+    if (teacher.classes.includes(classId)) {
+      return res.status(400).json({ message: 'Class already assigned to this teacher.' });
+    }
+
+    teacher.classes.push(classId);
+    await teacher.save();
+    
+    // Populate the class name for the response
+    await teacher.populate('classes', 'name');
+
+    res.status(200).json({ message: 'Class assigned successfully.', teacher });
+  } catch (error) {
+    console.error('Error assigning class:', error);
+    res.status(500).json({ message: 'Server error' });
+  }
+});
+
+// Unassign class from teacher
+router.post('/unassign-class', authenticateAdmin, async (req, res) => {
+  try {
+    const { teacherId, classId } = req.body;
+
+    const teacher = await Teacher.findById(teacherId);
+    if (!teacher) {
+      return res.status(404).json({ message: 'Teacher not found.' });
+    }
+
+    // Check if class is assigned
+    if (!teacher.classes.includes(classId)) {
+      return res.status(400).json({ message: 'Class not assigned to this teacher.' });
+    }
+
+    teacher.classes = teacher.classes.filter(cls => cls.toString() !== classId);
+    await teacher.save();
+
+    // Populate the class name for the response
+    await teacher.populate('classes', 'name');
+
+    res.status(200).json({ message: 'Class unassigned successfully.', teacher });
+  } catch (error) {
+    console.error('Error unassigning class:', error);
+    res.status(500).json({ message: 'Server error' });
   }
 });
 

@@ -3,8 +3,10 @@ const Student = require("../models/student");
 const Announcement = require("../models/announcement");
 const Marks = require("../models/marks");
 const FeeVoucher = require("../models/feeVoucher");
+const Class = require("../models/class");
 const bcrypt = require("bcrypt");
 const jwt = require("jsonwebtoken");
+const { authenticateAdmin } = require("../middleware/auth");
 
 const router = express.Router();
 
@@ -13,7 +15,7 @@ router.post("/login", async (req, res) => {
   try {
     const { email, password } = req.body;
 
-    const student = await Student.findOne({ email });
+    const student = await Student.findOne({ email }).populate('class', 'name');
     if (!student || !student.isActive) {
       return res.status(400).json({ message: "Invalid credentials or account deactivated" });
     }
@@ -71,15 +73,20 @@ router.post("/signup", async (req, res) => {
       return res.status(400).json({ message: "Student with this record number already exists" });
     }
 
+    const studentClass = await Class.findById(studentData.class);
+    if (!studentClass) {
+      return res.status(400).json({ message: "Invalid class" });
+    }
+
     const hashedPassword = await bcrypt.hash(studentData.password, 10);
     
     // Generate auto Student ID
-    let studentId = generateUniqueStudentId(studentData.fullname, studentData.class);
+    let studentId = generateUniqueStudentId(studentData.fullname, studentClass.name);
     let counter = 1;
     
     // Ensure uniqueness
     while (await Student.findOne({ studentId })) {
-      studentId = `${generateUniqueStudentId(studentData.fullname, studentData.class)}-${counter}`;
+      studentId = `${generateUniqueStudentId(studentData.fullname, studentClass.name)}-${counter}`;
       counter++;
     }
     
@@ -124,13 +131,40 @@ router.get("/profile/:id", async (req, res) => {
   }
 });
 
-// Update student profile
+// Update student profile (by admin)
+router.put("/admin/profile", authenticateAdmin, async (req, res) => {
+  try {
+    const updateData = { ...req.body };
+    delete updateData.password; // Don't allow password update through this route
+    
+    const student = await Student.findOneAndUpdate(
+      { _id: req.body.id },
+      updateData,
+      { new: true }
+    ).select('-password');
+
+    if (!student) {
+      return res.status(404).json({ message: "Student not found" });
+    }
+
+    res.status(200).json({ 
+      message: "Profile updated successfully by admin",
+      student 
+    });
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+});
+
+// Update student profile (by student)
 router.put("/profile", async (req, res) => {
   try {
     const updateData = { ...req.body };
     delete updateData.password; // Don't allow password update through this route
     delete updateData.studentId; // Don't allow studentId change
     delete updateData.specialStudentId; // Don't allow specialStudentId change
+    delete updateData.currentFee; // Don't allow fee changes
+    delete updateData.futureFee; // Don't allow fee changes
     
     const student = await Student.findOneAndUpdate(
       { _id: req.body.id },

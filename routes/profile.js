@@ -1,6 +1,7 @@
 const express = require("express");
 const Teacher = require("../models/teacher");
 const Student = require("../models/student");
+const Class = require("../models/class");
 const bcrypt = require("bcrypt");
 const jwt = require("jsonwebtoken");
 const cloudinary = require('cloudinary').v2;
@@ -52,7 +53,7 @@ async function deleteImageFromCloudinary(publicId) {
 // Get authenticated Teacher Profile (without ID)
 router.get("/teacher", authenticateTeacher, async (req, res) => {
   try {
-    const teacher = await Teacher.findById(req.user.id).select('-password');
+    const teacher = await Teacher.findById(req.user.id).populate('classes', 'name').select('-password');
     if (!teacher) {
       return res.status(404).json({ message: "Teacher not found" });
     }
@@ -66,7 +67,11 @@ router.get("/teacher", authenticateTeacher, async (req, res) => {
       qualification: teacher.qualification || '',
       experience: teacher.experience || '',
       subjects: teacher.subjects || [],
-      profileImage: teacher.img || ''
+      classes: teacher.classes || [],
+      profileImage: teacher.img || '',
+      isVerified: teacher.isVerified || false,
+      currentPay: teacher.currentPay || 0,
+      futurePay: teacher.futurePay || 0
     };
 
     res.status(200).json({ 
@@ -101,9 +106,25 @@ router.get("/teacher/:id", async (req, res) => {
 // Get authenticated Student Profile (without ID)
 router.get("/student", authenticateStudent, async (req, res) => {
   try {
-    const student = await Student.findById(req.user.id).select('-password');
+    console.log('Backend: GET /profile/student hit.');
+    console.log('Backend: req.user.id from token:', req.user.id);
+    const student = await Student.findById(req.user.id).populate('class', 'name').select('-password');
+    console.log('Backend: Student found by ID:', student ? student.fullname : 'None');
     if (!student) {
+      console.log('Backend: Student not found for ID:', req.user.id);
       return res.status(404).json({ message: "Student not found" });
+    }
+
+    let className = '';
+    if (student.class) {
+      if (typeof student.class === 'object') {
+        className = student.class.name;
+      } else {
+        const studentClass = await Class.findById(student.class);
+        if (studentClass) {
+          className = studentClass.name;
+        }
+      }
     }
 
     // Map the response to match frontend expectations
@@ -117,11 +138,15 @@ router.get("/student", authenticateStudent, async (req, res) => {
       dateOfBirth: student.dob ? student.dob.toISOString().split('T')[0] : '',
       gender: student.gender || '',
       profileImage: student.profilePicture || '',
-      class: student.class || '',
+      class: className,
       section: student.section || '',
-      rollNumber: student.rollNumber || ''
+      rollNumber: student.rollNumber || '',
+      isVerified: student.isVerified || false,
+      currentFee: student.currentFee || 0,
+      futureFee: student.futureFee || 0
     };
 
+    console.log("Sending profile:", profile);
     res.status(200).json({ 
       success: true,
       profile 
@@ -528,5 +553,7 @@ router.put("/student/:id", async (req, res) => {
     res.status(500).json({ message: error.message });
   }
 });
+
+
 
 module.exports = router;
