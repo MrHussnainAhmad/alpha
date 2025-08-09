@@ -69,8 +69,6 @@ app.use("/api/profile", profileRoutes);
 app.use("/api/student", studentRoutes);
 app.use("/api/classes", classRoutes);
 
-printRoutes(app);
-
 // Public app configuration endpoint (no authentication required)
 app.get("/api/app-config", async (req, res) => {
   try {
@@ -136,6 +134,10 @@ const { startScheduledCleanup } = require("./scripts/cleanupUnverifiedAccounts")
 
 function printRoutes(app) {
   console.log('Registered routes:');
+  if (!app._router || !app._router.stack) {
+    console.log('Router not initialized yet');
+    return;
+  }
   app._router.stack.forEach((middleware) => {
     if (middleware.route) { // routes registered directly on the app
       console.log(middleware.route.path, middleware.route.methods);
@@ -157,6 +159,9 @@ mongoose
   .then(() => {
     app.listen(process.env.PORT || 5000, () => {
       console.log(`Server is running on port ${process.env.PORT || 5000}`);
+      
+      // Print registered routes after server starts
+      printRoutes(app);
       
       // Start the cleanup scheduler
       console.log('Starting cleanup scheduler...');
