@@ -6,16 +6,17 @@ const auth = require('../middleware/auth'); // Assuming you have an auth middlew
 // Create a new class
 router.post('/', auth.authenticateAdmin, async (req, res) => {
   try {
-    const { name, section } = req.body;
+    console.log('Received request body for class creation:', req.body);
+    const { classNumber, section } = req.body;
     if (!name || !section) {
       return res.status(400).json({ message: 'Class name and section are required.' });
     }
-    const newClass = new Class({ name, section });
+    const newClass = new Class({ classNumber, section });
     await newClass.save();
     res.status(201).json({ message: 'Class created successfully', class: newClass });
   } catch (error) {
     if (error.code === 11000) {
-      return res.status(400).json({ message: 'Class with this name and section already exists.' });
+      return res.status(400).json({ message: 'Class with this number and section already exists.' });
     }
     console.error('Error creating class:', error);
     res.status(500).json({ message: 'Server error' });
@@ -67,7 +68,7 @@ router.put('/:id', auth.authenticateAdmin, async (req, res) => {
     res.status(200).json({ message: 'Class updated successfully', class: updatedClass });
   } catch (error) {
     if (error.code === 11000) {
-      return res.status(400).json({ message: 'Class with this name and section already exists.' });
+      return res.status(400).json({ message: 'Class with this number and section already exists.' });
     }
     console.error('Error updating class:', error);
     res.status(500).json({ message: 'Server error' });
