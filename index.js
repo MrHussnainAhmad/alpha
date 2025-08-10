@@ -13,6 +13,8 @@ const announcementRoutes = require("./routes/announcements.js");
 const feeVoucherRoutes = require("./routes/feeVouchers.js");
 const classQuestionRoutes = require("./routes/classQuestions.js");
 const profileRoutes = require("./routes/profile.js");
+const subjectRoutes = require("./routes/subjects.js");
+const gradeRoutes = require("./routes/grades.js");
 const { CloudinaryStorage } = require("multer-storage-cloudinary");
 
 // Import models
@@ -24,7 +26,7 @@ const app = express();
 
 app.use(express.json({ limit: '50mb' }));
 app.use(express.urlencoded({ limit: '50mb', extended: true }));
-app.use(cors());
+app.use(cors({ origin: '*' }));
 
 cloudinary.config({
   cloud_name: process.env.CLOUDINARY_NAME,
@@ -65,6 +67,8 @@ app.use("/api/class-questions", classQuestionRoutes);
 app.use("/api/profile", profileRoutes);
 app.use("/api/student", studentRoutes);
 app.use("/api/classes", classRoutes);
+app.use("/api/subjects", subjectRoutes);
+app.use("/api/grades", gradeRoutes);
 
 // Public app configuration endpoint (no authentication required)
 app.get("/api/app-config", async (req, res) => {

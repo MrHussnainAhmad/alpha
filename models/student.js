@@ -2,15 +2,15 @@ const mongoose = require("mongoose");
 const Class = require("./class");
 
 // Function to generate Student ID: S-name-class
-function generateStudentId(name, studentClass) {
+function generateStudentId(name, className) {
   const cleanName = name.replace(/\s+/g, '').toLowerCase();
-  return `S-${cleanName}-${studentClass}`;
+  return `S-${cleanName}-${className}`;
 }
 
 // Function to generate Special Student ID: S-name-class-rollnumber
-function generateSpecialStudentId(name, studentClass, rollNumber) {
+function generateSpecialStudentId(name, className, rollNumber) {
   const cleanName = name.replace(/\s+/g, '').toLowerCase();
-  return `S-${cleanName}-${studentClass}-${rollNumber}`;
+  return `S-${cleanName}-${className}-${rollNumber}`;
 }
 
 const studentSchema = new mongoose.Schema({
@@ -33,6 +33,16 @@ const studentSchema = new mongoose.Schema({
     unique: true,
     trim: true
   },
+  examIds: [{
+    type: String,
+  }],
+  allGrades: [{
+    examId: String,
+    subjects: [{
+      name: String,
+      grade: String,
+    }]
+  }],
   specialStudentId: {
     type: String,
     unique: true,
@@ -108,6 +118,12 @@ const studentSchema = new mongoose.Schema({
     type: String, // Cloudinary URL for fee voucher
     default: null
   },
+  grades: [
+    {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'Grade',
+    },
+  ],
   isActive: {
     type: Boolean,
     default: true
@@ -134,16 +150,32 @@ const studentSchema = new mongoose.Schema({
   timestamps: true
 });
 
+// Pre-save middleware to generate student ID when class is assigned
+studentSchema.pre('save', async function(next) {
+  if (this.isModified('class') && this.class) {
+    const studentClass = await Class.findById(this.class);
+    if (studentClass) {
+      // Generate new studentId based on class
+      const newStudentId = generateStudentId(this.fullname, studentClass.classNumber);
+      
+      // Update studentId if it doesn't exist or if it contains 'Unassigned'
+      if (!this.studentId || this.studentId.includes('Unassigned')) {
+        this.studentId = newStudentId;
+      }
+    }
+  }
+  next();
+});
+
 // Pre-save middleware to generate special student ID when roll number is provided
 studentSchema.pre('save', async function(next) {
-  // Only generate special student ID if class is assigned
+  // Only generate special student ID if class is assigned and roll number is provided
   if (this.isModified('rollNumber') && this.rollNumber && this.class) {
     const studentClass = await Class.findById(this.class);
     if (studentClass) {
-      this.specialStudentId = generateSpecialStudentId(this.fullname, studentClass.name, this.rollNumber);
+      this.specialStudentId = generateSpecialStudentId(this.fullname, studentClass.classNumber, this.rollNumber);
     }
   }
-  
   next();
 });
 
@@ -153,7 +185,7 @@ studentSchema.methods.assignSpecialIdForFeeVoucher = async function(rollNumber) 
     this.rollNumber = rollNumber;
     const studentClass = await Class.findById(this.class);
     if (studentClass) {
-      this.specialStudentId = generateSpecialStudentId(this.fullname, studentClass.name, this.rollNumber);
+      this.specialStudentId = generateSpecialStudentId(this.fullname, studentClass.classNumber, this.rollNumber);
     }
   }
   return this.specialStudentId;

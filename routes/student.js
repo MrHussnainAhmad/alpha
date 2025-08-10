@@ -65,7 +65,20 @@ router.post("/signup", async (req, res) => {
     
     // Generate auto Student ID
     const cleanName = studentData.fullname.replace(/\s+/g, '').toLowerCase();
-    const studentId = `S-${cleanName}-${Date.now()}`;
+    
+    // Generate studentId - if class is provided, we'll update it in pre-save middleware
+    // For now, create a temporary studentId
+    let studentId;
+    if (studentData.class) {
+      const studentClass = await Class.findById(studentData.class);
+      if (studentClass) {
+        studentId = `S-${cleanName}-${studentClass.classNumber}`;
+      } else {
+        studentId = `S-${cleanName}-Unassigned`;
+      }
+    } else {
+      studentId = `S-${cleanName}-Unassigned`;
+    }
     
     const student = new Student({
       ...studentData,

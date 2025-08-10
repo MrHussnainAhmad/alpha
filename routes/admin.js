@@ -1038,4 +1038,10 @@ router.post("/app-config/reset", async (req, res) => {
   }
 });
 
+const { getGradeSettings, updateGradeSettings } = require('../controllers/gradeSettingsController');
+
+// Grade Settings routes
+router.get('/grade-settings', authenticateAdmin, getGradeSettings);
+router.post('/grade-settings', authenticateAdmin, updateGradeSettings);
+
 module.exports = router;
