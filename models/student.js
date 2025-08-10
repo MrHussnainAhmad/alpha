@@ -60,12 +60,6 @@ const studentSchema = new mongoose.Schema({
     required: true,
     trim: true
   },
-  recordNumber: {
-    type: String,
-    unique: true,
-    sparse: true, // Allows null values
-    trim: true
-  },
   gender: {
     type: String,
     required: true,
@@ -80,9 +74,9 @@ const studentSchema = new mongoose.Schema({
     required: true,
     trim: true
   },
-  className: {
-    type: String,
-    trim: true,
+  class: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'Class',
     default: null
   },
   section: {

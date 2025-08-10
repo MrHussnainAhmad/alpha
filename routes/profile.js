@@ -108,7 +108,7 @@ router.get("/student", authenticateStudent, async (req, res) => {
   try {
     console.log('Backend: GET /profile/student hit.');
     console.log('Backend: req.user.id from token:', req.user.id);
-    const student = await Student.findById(req.user.id).select('-password');
+    const student = await Student.findById(req.user.id).populate('class').select('-password');
     console.log('Backend: Student found by ID:', student ? student.fullname : 'None');
     if (!student) {
       console.log('Backend: Student not found for ID:', req.user.id);
@@ -126,12 +126,13 @@ router.get("/student", authenticateStudent, async (req, res) => {
       dateOfBirth: student.dob ? student.dob.toISOString().split('T')[0] : '',
       gender: student.gender || '',
       profileImage: student.profilePicture || '',
-      className: student.className || '', // Use className
-      section: student.section || '',     // Use section
+      classNumber: student.class ? student.class.classNumber : '', // Use classNumber from populated class
+      section: student.class ? student.class.section : '',     // Use section from populated class
       rollNumber: student.rollNumber || '',
       isVerified: student.isVerified || false,
       currentFee: student.currentFee || 0,
-      futureFee: student.futureFee || 0
+      futureFee: student.futureFee || 0,
+      hasClassAndSectionSet: student.hasClassAndSectionSet || false
     };
 
     console.log("Sending profile:", profile);
@@ -214,6 +215,7 @@ router.put("/teacher", authenticateTeacher, async (req, res) => {
           'profiles'
         );
         updateData.img = imageResult.url;
+        console.log('Backend: updateData.profilePicture set to:', updateData.profilePicture);
       } catch (error) {
         return res.status(400).json({
           message: "Error uploading profile image",
@@ -346,6 +348,7 @@ router.put("/teacher/:id", async (req, res) => {
 // Update authenticated Student Profile
 router.put("/student", authenticateStudent, async (req, res) => {
   try {
+    console.log('Backend: PUT /profile/student hit. req.body:', req.body); // Added console.log
     const { 
       name, 
       email,
@@ -375,37 +378,19 @@ router.put("/student", authenticateStudent, async (req, res) => {
       return res.status(400).json({ message: "Roll number cannot be changed once assigned." });
     }
 
-    // Handle class and section update (one-time selection)
-    if ((classId !== undefined && classId !== null && classId !== '') || (section !== undefined && section !== null && section !== '')) {
-      if (student.hasClassAndSectionSet) { // Check if class/section already set
-        return res.status(400).json({ message: "Class and section can only be set once. Contact admin for changes." });
+    // Handle class and section update
+    if (classId !== undefined && classId !== null && classId !== '') {
+      // Removed the error check for hasClassAndSectionSet to allow updates
+      const classDoc = await Class.findById(classId);
+      if (!classDoc) {
+        return res.status(400).json({ message: "Invalid class selected." });
       }
+      updateData.class = classId;
+      updateData.hasClassAndSectionSet = true; // Still set this to true if classId is provided
+    }
 
-      if (classId) {
-        const classDoc = await Class.findById(classId);
-        if (!classDoc) {
-          return res.status(400).json({ message: "Invalid class selected." });
-        }
-        updateData.className = classDoc.name;
-      } else {
-        // If classId is explicitly unset, allow it if not already set
-        if (!student.hasClassAndSectionSet) {
-          updateData.className = null;
-        }
-      }
-
-      if (section) {
-        updateData.section = section;
-      } else {
-        // If section is explicitly unset, allow it if not already set
-        if (!student.hasClassAndSectionSet) {
-          updateData.section = null;
-        }
-      }
-      // Set hasClassAndSectionSet to true if both class and section are being set for the first time
-      if (updateData.className && updateData.section) {
-        updateData.hasClassAndSectionSet = true;
-      }
+    if (section !== undefined && section !== null && section !== '') {
+      updateData.section = section;
     }
 
     // Update basic fields if provided
@@ -451,6 +436,7 @@ router.put("/student", authenticateStudent, async (req, res) => {
       updateData.password = await bcrypt.hash(password, 10);
     }
 
+    console.log('Backend: updateData before findByIdAndUpdate:', updateData); // Added console.log
     // Update student
     const updatedStudent = await Student.findByIdAndUpdate(
       req.user.id,
@@ -458,6 +444,7 @@ router.put("/student", authenticateStudent, async (req, res) => {
       { new: true }
     ).select('-password');
 
+    console.log('Backend: updatedStudent after findByIdAndUpdate:', updatedStudent); // Added console.log
     const profile = {
       name: updatedStudent.fullname || '',
       email: updatedStudent.email || '',
@@ -468,7 +455,7 @@ router.put("/student", authenticateStudent, async (req, res) => {
       dateOfBirth: updatedStudent.dob ? updatedStudent.dob.toISOString().split('T')[0] : '',
       gender: updatedStudent.gender || '',
       profileImage: updatedStudent.profilePicture || '',
-      className: updatedStudent.className || '',
+      class: updatedStudent.class || null, // Include the class ID
       section: updatedStudent.section || '',
       rollNumber: updatedStudent.rollNumber || '',
       hasClassAndSectionSet: updatedStudent.hasClassAndSectionSet || false // Include in response
