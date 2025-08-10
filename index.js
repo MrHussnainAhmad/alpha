@@ -1,4 +1,3 @@
-
 const express = require("express");
 const mongoose = require("mongoose");
 const dotenv = require("dotenv");
@@ -11,7 +10,6 @@ const classRoutes = require("./routes/classes.js");
 const teacherRoutes = require("./routes/teacher.js");
 const studentRoutes = require("./routes/student.js");
 const announcementRoutes = require("./routes/announcements.js");
-const marksRoutes = require("./routes/marks.js");
 const feeVoucherRoutes = require("./routes/feeVouchers.js");
 const classQuestionRoutes = require("./routes/classQuestions.js");
 const profileRoutes = require("./routes/profile.js");
@@ -62,7 +60,6 @@ const uploadAnnouncement = multer({ storage: announcementStorage });
 app.use("/api/admin", adminRoutes);
 app.use("/api/teacher", teacherRoutes);
 app.use("/api/announcements", announcementRoutes);
-app.use("/api/marks", marksRoutes);
 app.use("/api/fee-vouchers", feeVoucherRoutes);
 app.use("/api/class-questions", classQuestionRoutes);
 app.use("/api/profile", profileRoutes);
