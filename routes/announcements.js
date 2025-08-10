@@ -57,7 +57,7 @@ router.post("/create", authenticateAdmin, async (req, res) => {
         message: announcement.message,
         images: announcement.images,
         targetType: announcement.targetType,
-        targetClass: announcement.targetClass,
+        targetClassName: announcement.targetClassName,
         targetSection: announcement.targetSection,
         priority: announcement.priority,
         createdAt: announcement.createdAt
@@ -75,7 +75,7 @@ router.get("/admin/all", authenticateAdmin, async (req, res) => {
     
     const query = {};
     if (targetType) query.targetType = targetType;
-    if (targetClass) query.targetClass = targetClass;
+    if (targetClass) query.targetClassName = targetClass;
     if (priority) query.priority = priority;
 
     const announcements = await Announcement.find(query)
@@ -239,7 +239,7 @@ router.post("/teacher/create", authenticateTeacher, async (req, res) => {
       message,
       images: images || [],
       targetType: targetType || 'students', // Default to all students
-      targetClass: targetType === 'class' ? targetClass : undefined,
+      targetClassName: targetType === 'class' ? targetClass : undefined, // Changed targetClass
       targetSection: targetType === 'class' ? targetSection : undefined,
       createdBy: teacher._id,
       createdByType: 'Teacher',
@@ -258,7 +258,7 @@ router.post("/teacher/create", authenticateTeacher, async (req, res) => {
         message: announcement.message,
         images: announcement.images,
         targetType: announcement.targetType,
-        targetClass: announcement.targetClass,
+        targetClassName: announcement.targetClassName, // Changed targetClass
         targetSection: announcement.targetSection,
         priority: announcement.priority,
         createdAt: announcement.createdAt,
@@ -392,7 +392,7 @@ router.get("/student", authenticateToken, async (req, res) => {
     }
 
     // Get student details for class-specific announcements
-    const student = await Student.findById(req.user.id).select('class section');
+    const student = await Student.findById(req.user.id).select('className section'); // Use className
     if (!student) {
       return res.status(404).json({ message: "Student not found" });
     }
@@ -400,7 +400,7 @@ router.get("/student", authenticateToken, async (req, res) => {
     const announcements = await Announcement.getForUser(
       'student', 
       req.user.id, 
-      student.class, 
+      student.className, // Use className
       student.section
     );
 
@@ -466,7 +466,7 @@ router.post("/student/ask-question", authenticateToken, async (req, res) => {
       message,
       images: images || [],
       targetType: 'question',
-      targetClass: student.class,
+      targetClassName: student.className, // Changed targetClass
       targetSection: student.section,
       questionType,
       subject,
@@ -486,7 +486,7 @@ router.post("/student/ask-question", authenticateToken, async (req, res) => {
         message: questionAnnouncement.message,
         subject: questionAnnouncement.subject,
         questionType: questionAnnouncement.questionType,
-        class: questionAnnouncement.targetClass,
+        className: questionAnnouncement.targetClassName, // Changed class
         section: questionAnnouncement.targetSection,
         studentName: questionAnnouncement.createdByName,
         createdAt: questionAnnouncement.createdAt
@@ -592,9 +592,9 @@ router.post("/:questionId/accept-reply/:replyId", authenticateToken, async (req,
 });
 
 // Get questions for a specific class (for teachers and students)
-router.get("/questions/class/:class/:section", authenticateToken, async (req, res) => {
+router.get("/questions/class/:className/:section", authenticateToken, async (req, res) => {
   try {
-    const { class: className, section } = req.params;
+    const { className: queryClassName, section } = req.params; // Renamed class to queryClassName
     const { subject, questionType, isResolved, page = 1, limit = 10 } = req.query;
     
     // Check access permissions
@@ -605,7 +605,7 @@ router.get("/questions/class/:class/:section", authenticateToken, async (req, re
       hasAccess = true; // Teachers can view all class questions
     } else if (req.user.userType === 'student') {
       const student = await Student.findById(req.user.id);
-      hasAccess = student && student.class === className && student.section === section;
+      hasAccess = student && student.className === queryClassName && student.section === section; // Use className
     }
 
     if (!hasAccess) {
@@ -617,7 +617,7 @@ router.get("/questions/class/:class/:section", authenticateToken, async (req, re
     if (questionType) filters.questionType = questionType;
     if (isResolved !== undefined) filters.isResolved = isResolved === 'true';
 
-    const questions = await Announcement.getClassQuestions(className, section, filters);
+    const questions = await Announcement.getClassQuestions(queryClassName, section, filters); // Use queryClassName
 
     // Add pagination
     const startIndex = (page - 1) * limit;
@@ -707,9 +707,9 @@ router.get("/:id", authenticateToken, async (req, res) => {
         if (userType === 'teacher') {
           hasAccess = true; // Teachers can see all questions
         } else if (userType === 'student') {
-          const student = await Student.findById(req.user.id).select('class section');
+          const student = await Student.findById(req.user.id).select('className section'); // Use className
           hasAccess = student && 
-                     student.class === announcement.targetClass && 
+                     student.className === announcement.targetClassName && // Use className
                      student.section === announcement.targetSection;
         }
       } else if (announcement.targetType === 'class' && userType === 'student') {

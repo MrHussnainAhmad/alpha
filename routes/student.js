@@ -15,7 +15,7 @@ router.post("/login", async (req, res) => {
   try {
     const { email, password } = req.body;
 
-    const student = await Student.findOne({ email }).populate('class', 'name');
+    const student = await Student.findOne({ email });
     if (!student || !student.isActive) {
       return res.status(400).json({ message: "Invalid credentials or account deactivated" });
     }
@@ -39,7 +39,7 @@ router.post("/login", async (req, res) => {
         fullname: student.fullname,
         studentId: student.studentId,
         email: student.email,
-        class: student.class,
+        className: student.className,
         section: student.section,
         profilePicture: student.profilePicture,
         specialStudentId: student.specialStudentId
@@ -50,14 +50,9 @@ router.post("/login", async (req, res) => {
   }
 });
 
-// Helper function to generate unique Student ID
-function generateUniqueStudentId(name, studentClass) {
-  const cleanName = name.replace(/\s+/g, '').toLowerCase();
-  return `S-${cleanName}-${studentClass}`;
-}
-
 // Student signup (self-registration with auto-generated studentId)
 router.post("/signup", async (req, res) => {
+  console.log('Executing new signup route handler...'); // Diagnostic log
   try {
     const studentData = req.body;
     
@@ -67,28 +62,11 @@ router.post("/signup", async (req, res) => {
       return res.status(400).json({ message: "Student with this email already exists" });
     }
 
-    // Check if record number already exists
-    const existingRecord = await Student.findOne({ recordNumber: studentData.recordNumber });
-    if (existingRecord) {
-      return res.status(400).json({ message: "Student with this record number already exists" });
-    }
-
-    const studentClass = await Class.findById(studentData.class);
-    if (!studentClass) {
-      return res.status(400).json({ message: "Invalid class" });
-    }
-
     const hashedPassword = await bcrypt.hash(studentData.password, 10);
     
     // Generate auto Student ID
-    let studentId = generateUniqueStudentId(studentData.fullname, studentClass.name);
-    let counter = 1;
-    
-    // Ensure uniqueness
-    while (await Student.findOne({ studentId })) {
-      studentId = `${generateUniqueStudentId(studentData.fullname, studentClass.name)}-${counter}`;
-      counter++;
-    }
+    const cleanName = studentData.fullname.replace(/\s+/g, '').toLowerCase();
+    const studentId = `S-${cleanName}-${Date.now()}`;
     
     const student = new Student({
       ...studentData,
@@ -105,9 +83,7 @@ router.post("/signup", async (req, res) => {
         id: student._id,
         fullname: student.fullname,
         studentId: student.studentId,
-        email: student.email,
-        class: student.class,
-        section: student.section
+        email: student.email
       }
     });
   } catch (error) {
@@ -256,7 +232,7 @@ router.post("/submit-fee-voucher", async (req, res) => {
       studentIdString: student.studentId,
       studentName: student.fullname,
       fatherName: student.fathername,
-      class: student.class,
+      className: student.className, // Changed from class
       section: student.section,
       rollNumber: rollNumber,
       voucherImage: feeVoucherImage,

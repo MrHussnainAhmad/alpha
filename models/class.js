@@ -4,14 +4,27 @@ const classSchema = new mongoose.Schema({
   name: {
     type: String,
     required: true,
-    unique: true,
     trim: true,
+  },
+  section: {
+    type: String,
+    required: true,
+    trim: true,
+  },
+  tempField: {
+    type: String,
   },
   // You can add more fields here, e.g., teacher, students, etc.
   // teacher: { type: mongoose.Schema.Types.ObjectId, ref: 'Teacher' },
   // students: [{ type: mongoose.Schema.Types.ObjectId, ref: 'Student' }],
 }, { timestamps: true });
 
+// Add a unique compound index for name and section (FIXED)
+classSchema.index({ name: 1, section: 1 }, { unique: true });
+
+if (mongoose.models.Class) {
+  delete mongoose.models.Class;
+}
 const Class = mongoose.model('Class', classSchema);
 
 module.exports = Class;

@@ -108,23 +108,11 @@ router.get("/student", authenticateStudent, async (req, res) => {
   try {
     console.log('Backend: GET /profile/student hit.');
     console.log('Backend: req.user.id from token:', req.user.id);
-    const student = await Student.findById(req.user.id).populate('class', 'name').select('-password');
+    const student = await Student.findById(req.user.id).select('-password');
     console.log('Backend: Student found by ID:', student ? student.fullname : 'None');
     if (!student) {
       console.log('Backend: Student not found for ID:', req.user.id);
       return res.status(404).json({ message: "Student not found" });
-    }
-
-    let className = '';
-    if (student.class) {
-      if (typeof student.class === 'object') {
-        className = student.class.name;
-      } else {
-        const studentClass = await Class.findById(student.class);
-        if (studentClass) {
-          className = studentClass.name;
-        }
-      }
     }
 
     // Map the response to match frontend expectations
@@ -138,8 +126,8 @@ router.get("/student", authenticateStudent, async (req, res) => {
       dateOfBirth: student.dob ? student.dob.toISOString().split('T')[0] : '',
       gender: student.gender || '',
       profileImage: student.profilePicture || '',
-      class: className,
-      section: student.section || '',
+      className: student.className || '', // Use className
+      section: student.section || '',     // Use section
       rollNumber: student.rollNumber || '',
       isVerified: student.isVerified || false,
       currentFee: student.currentFee || 0,
@@ -370,7 +358,9 @@ router.put("/student", authenticateStudent, async (req, res) => {
       rollNumber,
       profileImageBase64,
       profileImageType,
-      password
+      password,
+      classId, // New: classId from frontend
+      section // New: section from frontend
     } = req.body;
 
     const student = await Student.findById(req.user.id);
@@ -383,6 +373,39 @@ router.put("/student", authenticateStudent, async (req, res) => {
     // Prevent student from changing rollNumber if it's already assigned and different from the new value
     if (student.rollNumber && student.rollNumber.length > 0 && rollNumber && student.rollNumber !== rollNumber) {
       return res.status(400).json({ message: "Roll number cannot be changed once assigned." });
+    }
+
+    // Handle class and section update (one-time selection)
+    if ((classId !== undefined && classId !== null && classId !== '') || (section !== undefined && section !== null && section !== '')) {
+      if (student.hasClassAndSectionSet) { // Check if class/section already set
+        return res.status(400).json({ message: "Class and section can only be set once. Contact admin for changes." });
+      }
+
+      if (classId) {
+        const classDoc = await Class.findById(classId);
+        if (!classDoc) {
+          return res.status(400).json({ message: "Invalid class selected." });
+        }
+        updateData.className = classDoc.name;
+      } else {
+        // If classId is explicitly unset, allow it if not already set
+        if (!student.hasClassAndSectionSet) {
+          updateData.className = null;
+        }
+      }
+
+      if (section) {
+        updateData.section = section;
+      } else {
+        // If section is explicitly unset, allow it if not already set
+        if (!student.hasClassAndSectionSet) {
+          updateData.section = null;
+        }
+      }
+      // Set hasClassAndSectionSet to true if both class and section are being set for the first time
+      if (updateData.className && updateData.section) {
+        updateData.hasClassAndSectionSet = true;
+      }
     }
 
     // Update basic fields if provided
@@ -445,9 +468,10 @@ router.put("/student", authenticateStudent, async (req, res) => {
       dateOfBirth: updatedStudent.dob ? updatedStudent.dob.toISOString().split('T')[0] : '',
       gender: updatedStudent.gender || '',
       profileImage: updatedStudent.profilePicture || '',
-      class: updatedStudent.class || '',
+      className: updatedStudent.className || '',
       section: updatedStudent.section || '',
-      rollNumber: updatedStudent.rollNumber || ''
+      rollNumber: updatedStudent.rollNumber || '',
+      hasClassAndSectionSet: updatedStudent.hasClassAndSectionSet || false // Include in response
     };
 
     res.status(200).json({ 

@@ -16,7 +16,7 @@ const marksSchema = new mongoose.Schema({
     required: true,
     trim: true
   },
-  class: {
+  className: {
     type: String,
     required: true,
     trim: true

@@ -6,16 +6,16 @@ const auth = require('../middleware/auth'); // Assuming you have an auth middlew
 // Create a new class
 router.post('/', auth.authenticateAdmin, async (req, res) => {
   try {
-    const { name } = req.body;
-    if (!name) {
-      return res.status(400).json({ message: 'Class name is required.' });
+    const { name, section } = req.body;
+    if (!name || !section) {
+      return res.status(400).json({ message: 'Class name and section are required.' });
     }
-    const newClass = new Class({ name });
+    const newClass = new Class({ name, section });
     await newClass.save();
     res.status(201).json({ message: 'Class created successfully', class: newClass });
   } catch (error) {
     if (error.code === 11000) {
-      return res.status(400).json({ message: 'Class with this name already exists.' });
+      return res.status(400).json({ message: 'Class with this name and section already exists.' });
     }
     console.error('Error creating class:', error);
     res.status(500).json({ message: 'Server error' });
@@ -48,15 +48,15 @@ router.get('/public', async (req, res) => {
 router.put('/:id', auth.authenticateAdmin, async (req, res) => {
   try {
     const { id } = req.params;
-    const { name } = req.body;
+    const { name, section } = req.body;
 
-    if (!name) {
-      return res.status(400).json({ message: 'Class name is required.' });
+    if (!name || !section) {
+      return res.status(400).json({ message: 'Class name and section are required.' });
     }
 
     const updatedClass = await Class.findByIdAndUpdate(
       id,
-      { name },
+      { name, section },
       { new: true, runValidators: true }
     );
 
@@ -67,7 +67,7 @@ router.put('/:id', auth.authenticateAdmin, async (req, res) => {
     res.status(200).json({ message: 'Class updated successfully', class: updatedClass });
   } catch (error) {
     if (error.code === 11000) {
-      return res.status(400).json({ message: 'Class with this name already exists.' });
+      return res.status(400).json({ message: 'Class with this name and section already exists.' });
     }
     console.error('Error updating class:', error);
     res.status(500).json({ message: 'Server error' });

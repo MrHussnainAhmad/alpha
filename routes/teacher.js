@@ -129,7 +129,8 @@ router.post("/create-student", async (req, res) => {
     const student = new Student({
       ...studentData,
       password: hashedPassword,
-      class: studentData.class || null // Ensure class is stored as ObjectId or null
+      className: studentData.className || null, // Store class name
+      section: studentData.section || null // Store section
     });
 
     await student.save();
@@ -141,7 +142,7 @@ router.post("/create-student", async (req, res) => {
         fullname: student.fullname,
         studentId: student.studentId,
         email: student.email,
-        class: student.class,
+        className: student.className,
         section: student.section
       }
     });
@@ -151,12 +152,12 @@ router.post("/create-student", async (req, res) => {
 });
 
 // Get students by class and section
-router.get("/students/:class/:section", async (req, res) => {
+router.get("/students/:className/:section", async (req, res) => {
   try {
-    const { class: studentClass, section } = req.params;
+    const { className, section } = req.params;
     
     const students = await Student.find({ 
-      class: studentClass, 
+      className: className, 
       section: section,
       isActive: true 
     }).select('-password');
@@ -248,10 +249,12 @@ router.put("/update-student/:id", async (req, res) => {
     // Don't allow password update through this route
     delete updateData.password;
 
-    // Handle class update if provided
-    if (updateData.class) {
-      // If it's an empty string, set to null
-      updateData.class = updateData.class === '' ? null : updateData.class;
+    // Handle class and section update if provided
+    if (updateData.className !== undefined) {
+      updateData.className = updateData.className === '' ? null : updateData.className;
+    }
+    if (updateData.section !== undefined) {
+      updateData.section = updateData.section === '' ? null : updateData.section;
     }
     
     const student = await Student.findByIdAndUpdate(
@@ -301,11 +304,11 @@ router.put("/change-password", async (req, res) => {
 // Get all verified students (for class assignment)
 router.get('/verified-students', authenticateTeacher, async (req, res) => {
   try {
-    const { classId, section } = req.query;
+    const { className, section } = req.query; // Changed classId to className
     const query = { isVerified: true };
 
-    if (classId) {
-      query.class = classId;
+    if (className) { // Changed classId to className
+      query.className = className; // Changed class to className
     }
     if (section) {
       query.section = section;
@@ -317,7 +320,7 @@ router.get('/verified-students', authenticateTeacher, async (req, res) => {
     }
 
     console.log('Backend query for students:', query);
-    const students = await Student.find(query).populate('class', 'name').select('-password');
+    const students = await Student.find(query).select('-password'); // Removed populate
     res.status(200).json({ students });
   } catch (error) {
     console.error('Error fetching verified students:', error);
@@ -330,12 +333,12 @@ router.get('/my-class-students', authenticateTeacher, async (req, res) => {
   try {
     const mongoose = require('mongoose');
     const teacherId = req.user.id; // Get teacher ID from authenticated user
-    const { classId, section } = req.query;
+    const { className: queryClassName, section: querySection } = req.query; // Renamed classId to queryClassName
 
     console.log('🔍 MY-CLASS-STUDENTS API CALLED');
     console.log('📱 Request from mobile app');
     console.log('👤 Teacher ID:', teacherId);
-    console.log('🔍 Query params - classId:', classId, 'section:', section);
+    console.log('🔍 Query params - className:', queryClassName, 'section:', querySection);
     console.log('⏰ Timestamp:', new Date().toISOString());
 
     // First, get the teacher to see which classes they are assigned to
@@ -344,7 +347,7 @@ router.get('/my-class-students', authenticateTeacher, async (req, res) => {
       return res.status(404).json({ message: 'Teacher not found' });
     }
 
-    console.log('Teacher classes:', teacher.classes);
+    console.log('Teacher classes (ObjectIds):', teacher.classes);
 
     if (!teacher.classes || teacher.classes.length === 0) {
       return res.status(200).json({ 
@@ -353,27 +356,25 @@ router.get('/my-class-students', authenticateTeacher, async (req, res) => {
       });
     }
 
-    // Convert teacher.classes to ObjectIds for proper comparison
-    const teacherClassIds = teacher.classes.map(id => 
-      typeof id === 'string' ? new mongoose.Types.ObjectId(id) : id
-    );
+    // Get the actual class names from the Class model based on teacher's assigned class ObjectIds
+    const assignedClassesDocs = await Class.find({ _id: { $in: teacher.classes } }).select('name');
+    const assignedClassNames = assignedClassesDocs.map(cls => cls.name);
 
-    console.log('Teacher class IDs (ObjectIds):', teacherClassIds);
+    console.log('Teacher assigned class names:', assignedClassNames);
 
     // Build the query to find students in teacher's assigned classes
     let query = { 
-      class: { $in: teacherClassIds }, // Students in any of teacher's classes
+      className: { $in: assignedClassNames }, // Students in any of teacher's classes by name
       isVerified: true, // Only verified students
       isActive: true // Only active students
     };
 
     // If a specific class is requested, filter by that class (if teacher is assigned to it)
-    if (classId) {
-      const requestedClassId = new mongoose.Types.ObjectId(classId);
-      const isAssigned = teacherClassIds.some(id => id.equals(requestedClassId));
+    if (queryClassName) {
+      const isAssigned = assignedClassNames.some(name => name === queryClassName);
       
       if (isAssigned) {
-        query.class = requestedClassId;
+        query.className = queryClassName;
       } else {
         return res.status(403).json({ 
           message: 'You are not assigned to this class'
@@ -382,12 +383,12 @@ router.get('/my-class-students', authenticateTeacher, async (req, res) => {
     }
 
     // Filter by section if provided
-    if (section) {
-      query.section = section;
+    if (querySection) {
+      query.section = querySection;
       // If section indicates gender-based grouping
-      if (section.toLowerCase() === 'boys') {
+      if (querySection.toLowerCase() === 'boys') {
         query.gender = 'male';
-      } else if (section.toLowerCase() === 'girls') {
+      } else if (querySection.toLowerCase() === 'girls') {
         query.gender = 'female';
       }
     }
@@ -396,22 +397,21 @@ router.get('/my-class-students', authenticateTeacher, async (req, res) => {
     
     // Fetch students with class information
     const students = await Student.find(query)
-      .populate('class', 'name')
       .select('-password')
       .sort({ fullname: 1 }); // Sort alphabetically by name
 
     console.log(`Found ${students.length} students`);
     if (students.length > 0) {
-      console.log('First student class info:', students[0].class);
+      console.log('First student class info:', students[0].className, students[0].section);
     }
 
     // Group students by class for better organization
     const studentsByClass = students.reduce((acc, student) => {
-      const className = student.class ? student.class.name : 'No Class';
-      if (!acc[className]) {
-        acc[className] = [];
+      const classAndSection = `${student.className || 'No Class'}-${student.section || 'No Section'}`;
+      if (!acc[classAndSection]) {
+        acc[classAndSection] = [];
       }
-      acc[className].push(student);
+      acc[classAndSection].push(student);
       return acc;
     }, {});
 
@@ -420,7 +420,7 @@ router.get('/my-class-students', authenticateTeacher, async (req, res) => {
       studentsByClass,
       totalStudents: students.length,
       assignedClasses: teacher.classes.length,
-      teacherClassIds: teacherClassIds, // For debugging
+      assignedClassNames: assignedClassNames, // For debugging
       query: query // For debugging
     };
     
@@ -428,7 +428,7 @@ router.get('/my-class-students', authenticateTeacher, async (req, res) => {
     console.log('📊 Total students found:', students.length);
     console.log('🏫 Classes with students:', Object.keys(studentsByClass));
     if (students.length > 0) {
-      console.log('👥 First student:', students[0].fullname, '- Class:', students[0].class?.name);
+      console.log('👥 First student:', students[0].fullname, '- Class:', students[0].className, '- Section:', students[0].section);
     }
     console.log('✅ Response sent successfully');
     console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
@@ -443,24 +443,29 @@ router.get('/my-class-students', authenticateTeacher, async (req, res) => {
 // Assign student to class
 router.post('/assign-student-class', authenticateTeacher, async (req, res) => {
   try {
-    const { studentId, classId } = req.body;
+    const { studentId, classId, section } = req.body; // Added section
 
     const student = await Student.findById(studentId);
     if (!student) {
       return res.status(404).json({ message: 'Student not found.' });
     }
 
-    // Check if student is already assigned to this class
-    if (student.class && student.class.toString() === classId) {
-      return res.status(400).json({ message: 'Student already assigned to this class.' });
+    // Get class name from classId
+    const classDoc = await Class.findById(classId);
+    if (!classDoc) {
+      return res.status(400).json({ message: 'Invalid class ID.' });
+    }
+    const className = classDoc.name;
+
+    // Check if student is already assigned to this class and section
+    if (student.className === className && student.section === section) {
+      return res.status(400).json({ message: 'Student already assigned to this class and section.' });
     }
 
-    student.class = classId;
+    student.className = className; // Assign class name
+    student.section = section;     // Assign section
     await student.save();
     
-    // Populate the class name for the response
-    await student.populate('class', 'name');
-
     res.status(200).json({ message: 'Student assigned to class successfully.', student });
   } catch (error) {
     console.error('Error assigning student to class:', error);
@@ -478,7 +483,8 @@ router.post('/unassign-student-class', authenticateTeacher, async (req, res) => 
       return res.status(404).json({ message: 'Student not found.' });
     }
 
-    student.class = null; // Set class to null to unassign
+    student.className = null; // Set className to null to unassign
+    student.section = null;   // Set section to null to unassign
     await student.save();
 
     res.status(200).json({ message: 'Student unassigned from class successfully.', student });
@@ -542,15 +548,15 @@ router.get('/debug-data', authenticateTeacher, async (req, res) => {
     const teacher = await Teacher.findById(teacherId).populate('classes', 'name');
     
     // Get all students with their class data
-    const allStudents = await Student.find({}).populate('class', 'name').select('fullname class isVerified isActive');
+    const allStudents = await Student.find({}).select('fullname className section isVerified isActive');
     
     // Get only students in teacher's classes
     let teacherStudents = [];
     if (teacher && teacher.classes && teacher.classes.length > 0) {
-      const teacherClassIds = teacher.classes.map(cls => cls._id);
+      const assignedClassNames = (await Class.find({ _id: { $in: teacher.classes } }).select('name')).map(cls => cls.name);
       teacherStudents = await Student.find({ 
-        class: { $in: teacherClassIds }
-      }).populate('class', 'name').select('fullname class isVerified isActive');
+        className: { $in: assignedClassNames }
+      }).select('fullname className section isVerified isActive');
     }
     
     res.status(200).json({
@@ -582,16 +588,16 @@ router.get('/simple-test', authenticateTeacher, async (req, res) => {
     console.log('Teacher classes:', teacher?.classes);
     
     // Get first few students to see their structure
-    const students = await Student.find({}).limit(3).select('fullname class isVerified isActive');
+    const students = await Student.find({}).limit(3).select('fullname className section isVerified isActive');
     console.log('Sample students:', students);
     
     // Check if student's class field matches teacher's class
     if (teacher?.classes?.length > 0 && students.length > 0) {
-      const teacherClassId = teacher.classes[0].toString();
-      const studentClassId = students[0]?.class?.toString();
-      console.log('Teacher first class ID:', teacherClassId);
-      console.log('Student first class ID:', studentClassId);
-      console.log('Do they match?', teacherClassId === studentClassId);
+      const assignedClassNames = (await Class.find({ _id: { $in: teacher.classes } }).select('name')).map(cls => cls.name);
+      const studentClassName = students[0]?.className;
+      console.log('Teacher first class name:', assignedClassNames[0]);
+      console.log('Student first class name:', studentClassName);
+      console.log('Do they match?', assignedClassNames[0] === studentClassName);
     }
     
     res.json({

@@ -62,8 +62,8 @@ const studentSchema = new mongoose.Schema({
   },
   recordNumber: {
     type: String,
-    required: true,
     unique: true,
+    sparse: true, // Allows null values
     trim: true
   },
   gender: {
@@ -80,9 +80,9 @@ const studentSchema = new mongoose.Schema({
     required: true,
     trim: true
   },
-  class: {
-    type: mongoose.Schema.Types.ObjectId,
-    ref: 'Class',
+  className: {
+    type: String,
+    trim: true,
     default: null
   },
   section: {
@@ -93,6 +93,10 @@ const studentSchema = new mongoose.Schema({
     type: String,
     sparse: true, // Only required when generating special ID
     trim: true
+  },
+  hasClassAndSectionSet: {
+    type: Boolean,
+    default: false
   },
   currentFee: {
     type: Number,
@@ -138,14 +142,11 @@ const studentSchema = new mongoose.Schema({
 
 // Pre-save middleware to generate special student ID when roll number is provided
 studentSchema.pre('save', async function(next) {
-  // Generate special student ID when roll number is provided and student already has studentId
-  if (this.rollNumber && this.studentId && this.fullname && this.class) {
-    // Regenerate if rollNumber or class changed
-    if (!this.specialStudentId || this.isModified('rollNumber') || this.isModified('class')) {
-      const studentClass = await Class.findById(this.class);
-      if (studentClass) {
-        this.specialStudentId = generateSpecialStudentId(this.fullname, studentClass.name, this.rollNumber);
-      }
+  // Only generate special student ID if class is assigned
+  if (this.isModified('rollNumber') && this.rollNumber && this.class) {
+    const studentClass = await Class.findById(this.class);
+    if (studentClass) {
+      this.specialStudentId = generateSpecialStudentId(this.fullname, studentClass.name, this.rollNumber);
     }
   }
   

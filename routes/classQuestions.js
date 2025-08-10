@@ -44,7 +44,7 @@ router.post("/student/ask", authenticateToken, async (req, res) => {
       studentId: student._id,
       studentIdString: student.studentId,
       studentName: isAnonymous ? "Anonymous Student" : student.fullname,
-      class: student.class,
+      className: student.className,
       section: student.section,
       academicYear,
       priority: priority || 'medium',
@@ -74,9 +74,9 @@ router.post("/student/ask", authenticateToken, async (req, res) => {
 });
 
 // Get questions for a class (visible to students and teachers of that class)
-router.get("/class/:class/:section", authenticateToken, async (req, res) => {
+router.get("/class/:className/:section", authenticateToken, async (req, res) => {
   try {
-    const { class: className, section } = req.params;
+    const { className: queryClassName, section } = req.params; // Renamed class to queryClassName
     const { subject, status, academicYear, priority, page = 1, limit = 10 } = req.query;
     
     // Check if user has access to this class
@@ -86,7 +86,7 @@ router.get("/class/:class/:section", authenticateToken, async (req, res) => {
       hasAccess = true;
     } else if (req.user.userType === 'student') {
       const student = await Student.findById(req.user.id);
-      hasAccess = student && student.class === className && student.section === section;
+      hasAccess = student && student.className === queryClassName && student.section === section; // Use className
     } else if (req.user.userType === 'teacher') {
       hasAccess = true; // Teachers can view all classes
     }
@@ -95,7 +95,7 @@ router.get("/class/:class/:section", authenticateToken, async (req, res) => {
       return res.status(403).json({ message: "You don't have access to this class" });
     }
 
-    const questions = await ClassQuestion.getClassQuestions(className, section, {
+    const questions = await ClassQuestion.getClassQuestions(queryClassName, section, { // Use queryClassName
       subject,
       status,
       academicYear,
@@ -288,10 +288,10 @@ router.get("/student/my-questions", authenticateToken, async (req, res) => {
 router.get("/subject/:subject", authenticateAdminOrTeacher, async (req, res) => {
   try {
     const { subject } = req.params;
-    const { class: className, section, status, academicYear } = req.query;
+    const { className, section, status, academicYear } = req.query; // Renamed class to className
     
     const questions = await ClassQuestion.getQuestionsBySubject(subject, {
-      class: className,
+      className: className, // Use className
       section,
       status,
       academicYear
@@ -313,7 +313,7 @@ router.get("/:questionId", authenticateToken, async (req, res) => {
     const { questionId } = req.params;
     
     const question = await ClassQuestion.findById(questionId)
-      .populate('studentId', 'fullname studentId class section img')
+      .populate('studentId', 'fullname studentId className section img') // Use className
       .populate('answers.answeredBy', 'fullname username teacherId');
       
     if (!question) {
@@ -328,7 +328,7 @@ router.get("/:questionId", authenticateToken, async (req, res) => {
       hasAccess = true;
     } else if (req.user.userType === 'student') {
       const student = await Student.findById(req.user.id);
-      hasAccess = student && student.class === question.class && student.section === question.section;
+      hasAccess = student && student.className === question.className && student.section === question.section; // Use className
     }
 
     if (!hasAccess) {
@@ -366,12 +366,12 @@ router.get("/admin/all", authenticateAdmin, async (req, res) => {
     if (subject) query.subject = subject;
     if (status) query.status = status;
     if (academicYear) query.academicYear = academicYear;
-    if (className) query.class = className;
+    if (className) query.className = className;
     if (section) query.section = section;
     if (priority) query.priority = priority;
 
     const questions = await ClassQuestion.find(query)
-      .populate('studentId', 'fullname studentId class section')
+      .populate('studentId', 'fullname studentId className section') // Use className
       .populate('answers.answeredBy', 'fullname username teacherId')
       .sort({ lastActivityAt: -1 })
       .limit(limit * 1)
@@ -408,8 +408,8 @@ router.get("/admin/statistics", authenticateAdmin, async (req, res) => {
 
     const classStats = await ClassQuestion.aggregate([
       { $match: { isActive: true } },
-      { $group: { _id: { class: "$class", section: "$section" }, count: { $sum: 1 } } },
-      { $sort: { "_id.class": 1, "_id.section": 1 } }
+      { $group: { _id: { className: "$className", section: "$section" }, count: { $sum: 1 } } },
+      { $sort: { "_id.className": 1, "_id.section": 1 } }
     ]);
 
     res.status(200).json({
@@ -436,7 +436,7 @@ router.put("/student/:questionId", authenticateToken, async (req, res) => {
     // Don't allow changing certain fields
     delete updateData.studentId;
     delete updateData.studentIdString;
-    delete updateData.class;
+    delete updateData.className;
     delete updateData.section;
     delete updateData.answers;
     delete updateData.status;

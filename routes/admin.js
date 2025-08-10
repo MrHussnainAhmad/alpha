@@ -2,6 +2,7 @@ const express = require("express");
 const Admin = require("../models/admin");
 const Teacher = require("../models/teacher");
 const Student = require("../models/student");
+const Class = require("../models/class");
 const Announcement = require("../models/announcement");
 const AppConfig = require("../models/appConfig");
 const bcrypt = require("bcrypt");
@@ -235,7 +236,7 @@ router.get("/teachers", async (req, res) => {
 // Get all students (admin function)
 router.get("/students", async (req, res) => {
   try {
-    const students = await Student.find({ isActive: true }).populate('class', 'name').select('-password');
+    const students = await Student.find({ isActive: true }).select('-password');
     console.log("Students data sent to frontend:", students.map(s => ({ id: s._id, fullname: s.fullname, profilePicture: s.profilePicture }))); // Log relevant student data
     res.status(200).json({ students });
   } catch (error) {
@@ -384,10 +385,28 @@ router.put("/update-student/:id", async (req, res) => {
     // Don't allow password update through this route
     delete updateData.password;
 
-    // Handle class update if provided
-    if (updateData.class) {
-      // If it's an empty string, set to null
-      updateData.class = updateData.class === '' ? null : updateData.class;
+    // Handle class and section update if provided
+    if (updateData.class && updateData.section) {
+      const classDoc = await Class.findById(updateData.class);
+      if (classDoc) {
+        updateData.className = classDoc.name; // Store class name as string
+        updateData.section = updateData.section; // Store section as string
+      } else {
+        // Handle case where class is not found, maybe return an error
+        return res.status(400).json({ message: "Invalid class ID" });
+      }
+      // Remove original class and section from updateData as they are now in className and section
+      delete updateData.class;
+      // updateData.section is already handled, no need to delete it again
+    } else if (updateData.class === '' && updateData.section === '') {
+      updateData.className = null;
+      updateData.section = null;
+      delete updateData.class; // Remove original class from updateData
+    } else if (updateData.class === '') { // Only class is being unset
+      updateData.className = null;
+      delete updateData.class;
+    } else if (updateData.section === '') { // Only section is being unset
+      updateData.section = null;
     }
     
     const student = await Student.findByIdAndUpdate(
@@ -873,7 +892,7 @@ router.put("/assign-student-id/:id", async (req, res) => {
     }
     
     // Generate student ID if not provided custom one
-    const studentId = customStudentId || generateStudentId(student.fullname, student.class);
+    const studentId = customStudentId || generateStudentId(student.fullname, student.className); // Use className
     
     // Check if student ID already exists
     const existingStudent = await Student.findOne({ studentId, _id: { $ne: id } });

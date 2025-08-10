@@ -20,7 +20,7 @@ const announcementSchema = new mongoose.Schema({
     enum: ['all', 'teachers', 'students', 'class', 'question'],
     default: 'all'
   },
-  targetClass: {
+  targetClassName: {
     type: String,
     trim: true,
     // Required only when targetType is 'class'

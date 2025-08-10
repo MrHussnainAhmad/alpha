@@ -87,7 +87,7 @@ router.post("/add", authenticateAdminOrTeacher, async (req, res) => {
       studentId: student._id,
       studentIdString: student.studentId,
       studentName: student.fullname,
-      class: student.class,
+      className: student.className,
       section: student.section,
       examType,
       examDate: new Date(examDate),
@@ -235,7 +235,7 @@ router.get("/student/:studentIdString", authenticateToken, async (req, res) => {
       student: {
         name: student.fullname,
         studentId: student.studentId,
-        class: student.class,
+        className: student.className,
         section: student.section
       },
       academicRecord: Object.values(groupedMarks)
@@ -246,9 +246,9 @@ router.get("/student/:studentIdString", authenticateToken, async (req, res) => {
 });
 
 // Get class performance (Admin/Teacher only)
-router.get("/class/:class/:section", authenticateAdminOrTeacher, async (req, res) => {
+router.get("/class/:className/:section", authenticateAdminOrTeacher, async (req, res) => {
   try {
-    const { class: className, section } = req.params;
+    const { className: queryClassName, section } = req.params; // Renamed class to queryClassName
     const { examType, academicYear } = req.query;
 
     if (!examType || !academicYear) {
@@ -258,7 +258,7 @@ router.get("/class/:class/:section", authenticateAdminOrTeacher, async (req, res
     }
 
     const classPerformance = await Marks.getClassPerformance(
-      className,
+      queryClassName, // Use queryClassName
       section,
       examType,
       academicYear
@@ -277,7 +277,7 @@ router.get("/class/:class/:section", authenticateAdminOrTeacher, async (req, res
     }
 
     res.status(200).json({
-      class: className,
+      className: queryClassName, // Use queryClassName
       section: section,
       examType: examType,
       academicYear: academicYear,
@@ -338,7 +338,7 @@ router.get("/admin/all", authenticateAdmin, async (req, res) => {
     
     if (examType) query.examType = examType;
     if (academicYear) query.academicYear = academicYear;
-    if (className) query.class = className;
+    if (className) query.className = className;
     if (section) query.section = section;
 
     const marks = await Marks.find(query)
@@ -373,7 +373,7 @@ router.get("/admin/stats", authenticateAdmin, async (req, res) => {
 
     const statsByClass = await Marks.aggregate([
       { $match: { isActive: true } },
-      { $group: { _id: { class: "$class", section: "$section" }, count: { $sum: 1 }, avgPercentage: { $avg: "$overallPercentage" } } }
+      { $group: { _id: { className: "$className", section: "$section" }, count: { $sum: 1 }, avgPercentage: { $avg: "$overallPercentage" } } }
     ]);
 
     const gradeDistribution = await Marks.aggregate([
