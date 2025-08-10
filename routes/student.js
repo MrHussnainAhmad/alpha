@@ -1,8 +1,8 @@
 const express = require("express");
-const Student = require("..\models\student");
-const Announcement = require("..\models\announcement");
-const FeeVoucher = require("..\models\feeVoucher");
-const Class = require("..\models\class");
+const Student = require("../models/student");
+const Announcement = require("../models/announcement");
+const FeeVoucher = require("../models/feeVoucher");
+const Class = require("../models/class");
 const bcrypt = require("bcrypt");
 const jwt = require("jsonwebtoken");
 const { authenticateAdmin } = require("../middleware/auth");
