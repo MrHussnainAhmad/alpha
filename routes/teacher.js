@@ -545,7 +545,7 @@ router.get('/debug-data', authenticateTeacher, async (req, res) => {
     const teacherId = req.user.id;
     
     // Get teacher data
-    const teacher = await Teacher.findById(teacherId).populate('classes', 'name');
+    const teacher = await Teacher.findById(teacherId).populate('classes', 'classNumber');
     
     // Get all students with their class data
     const allStudents = await Student.find({}).select('fullname className section isVerified isActive');

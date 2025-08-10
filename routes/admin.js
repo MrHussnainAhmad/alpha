@@ -516,7 +516,7 @@ router.delete("/delete-student/:id", async (req, res) => {
 // Get all verified teachers (for class assignment)
 router.get('/verified-teachers', authenticateAdmin, async (req, res) => {
   try {
-    const teachers = await Teacher.find({ isVerified: true }).populate('classes', 'name').select('-password');
+    const teachers = await Teacher.find({ isVerified: true }).populate('classes', 'classNumber').select('-password');
     res.status(200).json({ teachers });
   } catch (error) {
     console.error('Error fetching verified teachers:', error);
@@ -542,8 +542,8 @@ router.post('/assign-class', authenticateAdmin, async (req, res) => {
     teacher.classes.push(classId);
     await teacher.save();
     
-    // Populate the class name for the response
-    await teacher.populate('classes', 'name');
+    // Populate the class number for the response
+    await teacher.populate('classes', 'classNumber');
 
     res.status(200).json({ message: 'Class assigned successfully.', teacher });
   } catch (error) {
@@ -570,8 +570,8 @@ router.post('/unassign-class', authenticateAdmin, async (req, res) => {
     teacher.classes = teacher.classes.filter(cls => cls.toString() !== classId);
     await teacher.save();
 
-    // Populate the class name for the response
-    await teacher.populate('classes', 'name');
+    // Populate the class number for the response
+    await teacher.populate('classes', 'classNumber');
 
     res.status(200).json({ message: 'Class unassigned successfully.', teacher });
   } catch (error) {
@@ -586,7 +586,7 @@ router.get('/teachers-with-classes', authenticateAdmin, async (req, res) => {
     const teachers = await Teacher.find({ 
       isVerified: true, 
       classes: { $exists: true, $ne: [] } 
-    }).populate('classes', 'name').select('-password');
+    }).populate('classes', 'classNumber').select('-password');
     
     res.status(200).json({ teachers });
   } catch (error) {

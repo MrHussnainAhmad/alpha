@@ -53,7 +53,7 @@ async function deleteImageFromCloudinary(publicId) {
 // Get authenticated Teacher Profile (without ID)
 router.get("/teacher", authenticateTeacher, async (req, res) => {
   try {
-    const teacher = await Teacher.findById(req.user.id).populate('classes', 'name').select('-password');
+    const teacher = await Teacher.findById(req.user.id).populate('classes', 'classNumber').select('-password');
     if (!teacher) {
       return res.status(404).json({ message: "Teacher not found" });
     }

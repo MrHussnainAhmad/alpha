@@ -8,8 +8,8 @@ router.post('/', auth.authenticateAdmin, async (req, res) => {
   try {
     console.log('Received request body for class creation:', req.body);
     const { classNumber, section } = req.body;
-    if (!name || !section) {
-      return res.status(400).json({ message: 'Class name and section are required.' });
+    if (!classNumber || !section) {
+      return res.status(400).json({ message: 'Class number and section are required.' });
     }
     const newClass = new Class({ classNumber, section });
     await newClass.save();
@@ -49,15 +49,15 @@ router.get('/public', async (req, res) => {
 router.put('/:id', auth.authenticateAdmin, async (req, res) => {
   try {
     const { id } = req.params;
-    const { name, section } = req.body;
+    const { classNumber, section } = req.body;
 
-    if (!name || !section) {
-      return res.status(400).json({ message: 'Class name and section are required.' });
+    if (!classNumber || !section) {
+      return res.status(400).json({ message: 'Class number and section are required.' });
     }
 
     const updatedClass = await Class.findByIdAndUpdate(
       id,
-      { name, section },
+      { classNumber, section },
       { new: true, runValidators: true }
     );
 
@@ -108,7 +108,7 @@ router.get('/:id/teachers', auth.authenticateAdmin, async (req, res) => {
     const teachers = await Teacher.find({ 
       classes: id,
       isVerified: true 
-    }).populate('classes', 'name').select('-password');
+    }).populate('classes', 'classNumber').select('-password');
     
     res.status(200).json({ 
       class: classData,

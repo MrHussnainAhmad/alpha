@@ -1,7 +1,7 @@
 const mongoose = require('mongoose');
 
 const classSchema = new mongoose.Schema({
-  name: {
+  classNumber: {
     type: String,
     required: true,
     trim: true,
@@ -16,7 +16,7 @@ const classSchema = new mongoose.Schema({
   // students: [{ type: mongoose.Schema.Types.ObjectId, ref: 'Student' }],
 }, { timestamps: true });
 
-// Add a unique compound index for name and section (FIXED)
+// Add a unique compound index for classNumber and section
 classSchema.index({ classNumber: 1, section: 1 }, { unique: true });
 
 if (mongoose.models.Class) {
