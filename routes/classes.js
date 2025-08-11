@@ -161,7 +161,7 @@ router.get('/:id/stats', auth.authenticateAdmin, async (req, res) => {
 router.get('/:id/details', auth.authenticateStudent, async (req, res) => {
   try {
     const { id } = req.params;
-    const Teacher = require('../models/teacher');
+    const Timetable = require('../models/timetable');
     
     // Find the class first
     const classData = await Class.findById(id);
@@ -169,41 +169,51 @@ router.get('/:id/details', auth.authenticateStudent, async (req, res) => {
       return res.status(404).json({ message: 'Class not found.' });
     }
     
-    // Find teachers assigned to this class and their subjects
-    const teachers = await Teacher.find({ 
-      classes: id,
-      isVerified: true 
-    }).select('fullname subjects');
+    // Get timetable entries for this class
+    const timetableEntries = await Timetable.find({ 
+      class: id, 
+      isActive: true 
+    })
+    .populate('teacher', 'fullname')
+    .sort({ day: 1, timeSlot: 1 });
+
+    // Group by day for better organization
+    const days = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
+    const groupedTimetable = {};
     
-    // Create a subjects array with teacher information
-    const subjectsWithTeachers = [];
-    teachers.forEach(teacher => {
-      if (teacher.subjects && teacher.subjects.length > 0) {
-        teacher.subjects.forEach(subjectName => {
-          subjectsWithTeachers.push({
-            name: subjectName,
-            teacher: {
-              fullname: teacher.fullname
-            }
-          });
-        });
-      }
+    days.forEach(day => {
+      groupedTimetable[day] = timetableEntries
+        .filter(entry => entry.day === day)
+        .map(entry => ({
+          subject: entry.subject,
+          teacher: {
+            fullname: entry.teacher.fullname
+          },
+          timeSlot: entry.timeSlot
+        }));
     });
-    
-    // Remove duplicate subjects (in case multiple teachers teach the same subject)
-    const uniqueSubjects = subjectsWithTeachers.filter((subject, index, self) => 
-      index === self.findIndex(s => s.name === subject.name)
-    );
-    
+
+    // Also provide a flat list for backward compatibility
+    const subjectsWithTeachers = timetableEntries.map(entry => ({
+      name: entry.subject,
+      teacher: {
+        fullname: entry.teacher.fullname
+      },
+      timeSlot: entry.timeSlot,
+      day: entry.day
+    }));
+
     console.log('Class details for student:', {
       class: classData,
-      subjects: uniqueSubjects
+      timetable: groupedTimetable,
+      subjects: subjectsWithTeachers
     });
     
     res.status(200).json({ 
       class: {
         ...classData.toObject(),
-        subjects: uniqueSubjects
+        subjects: subjectsWithTeachers,
+        timetable: groupedTimetable
       }
     });
   } catch (error) {

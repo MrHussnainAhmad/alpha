@@ -82,6 +82,10 @@ const authenticateStudent = async (req, res, next) => {
         return res.status(403).json({ message: "Student not found or inactive" });
       }
       
+      // Set studentId for fee voucher routes
+      req.user.studentId = student.studentId;
+      req.user.specialStudentId = student.specialStudentId;
+      
       next();
     } catch (error) {
       res.status(500).json({ message: error.message });

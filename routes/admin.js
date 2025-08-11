@@ -835,6 +835,145 @@ router.get('/search-teachers', authenticateAdmin, async (req, res) => {
   }
 });
 
+// Assign subjects to teacher with timetable
+router.post('/assign-subjects-with-timetable', authenticateAdmin, async (req, res) => {
+  try {
+    const { teacherId, subjectAssignments } = req.body;
+    const Timetable = require('../models/timetable');
+
+    if (!subjectAssignments || !Array.isArray(subjectAssignments) || subjectAssignments.length === 0) {
+      return res.status(400).json({ message: 'Please provide subject assignments with timetable information.' });
+    }
+
+    const teacher = await Teacher.findById(teacherId);
+    if (!teacher) {
+      return res.status(404).json({ message: 'Teacher not found.' });
+    }
+
+    if (!teacher.isVerified) {
+      return res.status(400).json({ message: 'Teacher must be verified to assign subjects.' });
+    }
+
+    if (!teacher.classes || teacher.classes.length === 0) {
+      return res.status(400).json({ message: 'Teacher must have assigned classes before assigning subjects.' });
+    }
+
+    // Extract unique subjects from assignments
+    const subjects = [...new Set(subjectAssignments.map(assignment => assignment.subject))];
+    
+    // Remove duplicates and add new subjects to teacher
+    const uniqueSubjects = [...new Set([...teacher.subjects, ...subjects])];
+    teacher.subjects = uniqueSubjects;
+    await teacher.save();
+
+    // Create timetable entries
+    const timetableEntries = [];
+    for (const assignment of subjectAssignments) {
+      const { subject, classId, day, timeSlot } = assignment;
+      
+      // Validate that the class is assigned to this teacher
+      if (!teacher.classes.includes(classId)) {
+        return res.status(400).json({ 
+          message: `Class ${classId} is not assigned to teacher ${teacher.fullname}` 
+        });
+      }
+
+      // Check for time slot conflicts
+      const existingSlot = await Timetable.findOne({
+        class: classId,
+        day: day,
+        timeSlot: timeSlot,
+        isActive: true
+      });
+
+      if (existingSlot) {
+        return res.status(400).json({ 
+          message: `Time slot ${timeSlot} on ${day} is already occupied for this class` 
+        });
+      }
+
+      // Create timetable entry
+      const timetableEntry = new Timetable({
+        class: classId,
+        day: day,
+        timeSlot: timeSlot,
+        subject: subject,
+        teacher: teacherId
+      });
+
+      await timetableEntry.save();
+      timetableEntries.push(timetableEntry);
+    }
+    
+    // Populate the teacher data for response
+    await teacher.populate('classes', 'name');
+
+    res.status(200).json({ 
+      message: 'Subjects assigned successfully with timetable.', 
+      teacher,
+      timetableEntries: timetableEntries.length
+    });
+  } catch (error) {
+    console.error('Error assigning subjects with timetable:', error);
+    res.status(500).json({ message: 'Server error' });
+  }
+});
+
+// Get timetable for a class
+router.get('/timetable/:classId', authenticateAdmin, async (req, res) => {
+  try {
+    const { classId } = req.params;
+    const Timetable = require('../models/timetable');
+    
+    const timetable = await Timetable.find({ 
+      class: classId, 
+      isActive: true 
+    })
+    .populate('teacher', 'fullname')
+    .sort({ day: 1, timeSlot: 1 });
+
+    // Group by day
+    const groupedTimetable = {};
+    const days = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
+    
+    days.forEach(day => {
+      groupedTimetable[day] = timetable.filter(entry => entry.day === day);
+    });
+
+    res.status(200).json({ 
+      classId,
+      timetable: groupedTimetable
+    });
+  } catch (error) {
+    console.error('Error fetching timetable:', error);
+    res.status(500).json({ message: 'Server error' });
+  }
+});
+
+// Remove timetable entry
+router.delete('/timetable/:entryId', authenticateAdmin, async (req, res) => {
+  try {
+    const { entryId } = req.params;
+    const Timetable = require('../models/timetable');
+    
+    const entry = await Timetable.findById(entryId);
+    if (!entry) {
+      return res.status(404).json({ message: 'Timetable entry not found.' });
+    }
+
+    // Soft delete by setting isActive to false
+    entry.isActive = false;
+    await entry.save();
+
+    res.status(200).json({ 
+      message: 'Timetable entry removed successfully.' 
+    });
+  } catch (error) {
+    console.error('Error removing timetable entry:', error);
+    res.status(500).json({ message: 'Server error' });
+  }
+});
+
 // Clean up teachers without teacherId (should run periodically)
 router.post("/cleanup-teachers", async (req, res) => {
   try {
