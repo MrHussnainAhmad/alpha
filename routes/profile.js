@@ -2,6 +2,7 @@ const express = require("express");
 const Teacher = require("../models/teacher");
 const Student = require("../models/student");
 const Class = require("../models/class");
+const Grade = require("../models/grade");
 const bcrypt = require("bcrypt");
 const jwt = require("jsonwebtoken");
 const cloudinary = require('cloudinary').v2;
@@ -117,6 +118,7 @@ router.get("/student", authenticateStudent, async (req, res) => {
 
     // Map the response to match frontend expectations
     const profile = {
+      studentId: student.studentId || '',
       name: student.fullname || '',
       email: student.email || '',
       phone: student.phoneNumber || '',
@@ -566,5 +568,16 @@ router.put("/student/:id", async (req, res) => {
 });
 
 
+
+// Get all grades for the authenticated student
+router.get("/student/my-grades", authenticateStudent, async (req, res) => {
+  try {
+    const grades = await Grade.find({ student: req.user.id }).sort({ examDate: -1 });
+    res.status(200).json({ success: true, grades });
+  } catch (error) {
+    console.error('Error fetching student grades:', error);
+    res.status(500).json({ success: false, message: 'Server error' });
+  }
+});
 
 module.exports = router;

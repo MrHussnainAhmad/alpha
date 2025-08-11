@@ -2,7 +2,7 @@ const express = require('express');
 const router = express.Router();
 const Grade = require('../models/grade');
 const Student = require('../models/student');
-const { authenticateAdmin } = require('../middleware/auth');
+const { authenticateAdmin, authenticateStudent } = require('../middleware/auth');
 
 // Create a new grade record
 router.post('/', authenticateAdmin, async (req, res) => {
@@ -102,6 +102,30 @@ router.get('/student/:studentId', authenticateAdmin, async (req, res) => {
     const { studentId } = req.params;
 
     const grades = await Grade.find({ student: studentId }).sort({ examDate: -1 });
+    res.status(200).json({ grades });
+  } catch (error) {
+    console.error('Error fetching student grades:', error);
+    res.status(500).json({ message: 'Server error' });
+  }
+});
+
+// Get grades for the logged-in student
+router.get('/me', authenticateStudent, async (req, res) => {
+  try {
+    const { gradeType, examDate } = req.query;
+    const studentId = req.user.id;
+
+    let query = { student: studentId };
+
+    if (gradeType) {
+      query.gradeType = gradeType;
+    }
+
+    if (examDate) {
+      query.examDate = new Date(examDate);
+    }
+
+    const grades = await Grade.find(query).sort({ examDate: -1 });
     res.status(200).json({ grades });
   } catch (error) {
     console.error('Error fetching student grades:', error);

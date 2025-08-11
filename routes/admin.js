@@ -583,15 +583,26 @@ router.post('/unassign-class', authenticateAdmin, async (req, res) => {
 // Get teachers with assigned classes (for subject management)
 router.get('/teachers-with-classes', authenticateAdmin, async (req, res) => {
   try {
+    // Find teachers who have classes assigned and are verified
     const teachers = await Teacher.find({ 
       isVerified: true, 
-      classes: { $exists: true, $ne: [] } 
-    }).populate('classes', 'classNumber').select('-password');
-    
-    res.status(200).json({ teachers });
+      classes: { $exists: true, $not: { $size: 0 } } 
+    })
+    .populate('classes', 'name level')
+    .select('fullname email teacherId classes subjects')
+    .lean();
+
+    res.json({
+      success: true,
+      teachers: teachers || []
+    });
   } catch (error) {
     console.error('Error fetching teachers with classes:', error);
-    res.status(500).json({ message: 'Server error' });
+    res.status(500).json({
+      success: false,
+      message: 'Failed to fetch teachers with classes',
+      error: error.message
+    });
   }
 });
 
