@@ -1,9 +1,16 @@
 const express = require("express");
 const FeeVoucher = require("../models/feeVoucher");
 const Student = require("../models/student");
+const Class = require("../models/class");
 const cloudinary = require('cloudinary').v2;
 const multer = require('multer');
 const { authenticateStudent, authenticateAdmin } = require('../middleware/auth');
+
+// Import the generateSpecialStudentId function
+function generateSpecialStudentId(name, className, rollNumber) {
+  const cleanName = name.replace(/\s+/g, '').toLowerCase();
+  return `s-${cleanName}-${className}-${rollNumber}`;
+}
 
 // Configure Cloudinary
 cloudinary.config({
@@ -53,6 +60,26 @@ router.post("/upload", authenticateStudent, upload.single('image'), async (req, 
 
     if (!req.file) {
       return res.status(400).json({ message: "No image file provided" });
+    }
+
+    // Check if student has a class assigned
+    if (!student.class) {
+      return res.status(400).json({ message: "You must be assigned to a class before uploading fee vouchers" });
+    }
+
+    // Check if student has a roll number (required for specialStudentId)
+    if (!student.rollNumber) {
+      return res.status(400).json({ message: "You must have a roll number assigned before uploading fee vouchers" });
+    }
+
+    // Ensure specialStudentId exists
+    if (!student.specialStudentId) {
+      // Generate specialStudentId if it doesn't exist
+      const studentClass = await Class.findById(student.class);
+      if (studentClass) {
+        student.specialStudentId = generateSpecialStudentId(student.fullname, studentClass.classNumber, student.rollNumber);
+        await student.save();
+      }
     }
 
     const b64 = Buffer.from(req.file.buffer).toString("base64");
