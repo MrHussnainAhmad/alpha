@@ -155,7 +155,10 @@ studentSchema.pre('save', async function(next) {
   console.log('Entering pre-save middleware for studentId generation');
   console.log(`isModified('class'): ${this.isModified('class')}`);
   console.log(`this.class: ${this.class}`);
-  if (this.isModified('class') && this.class) {
+  console.log(`Current studentId: ${this.studentId}`);
+  
+  // Check if class is assigned and studentId needs to be updated
+  if (this.class && (!this.studentId || this.studentId.includes('Unassigned'))) {
     const studentClass = await Class.findById(this.class);
     if (studentClass) {
       // Generate new studentId based on class

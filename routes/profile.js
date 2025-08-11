@@ -440,6 +440,7 @@ router.put("/student", authenticateStudent, async (req, res) => {
     const updatedStudent = await student.save();
 
     const profile = {
+      studentId: updatedStudent.studentId || '', // Include the updated studentId
       name: updatedStudent.fullname || '',
       email: updatedStudent.email || '',
       phone: updatedStudent.phoneNumber || '',
