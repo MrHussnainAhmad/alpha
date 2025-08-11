@@ -249,6 +249,9 @@ router.put("/update-student/:id", async (req, res) => {
     // Don't allow password update through this route
     delete updateData.password;
 
+    // Check if class is being updated (this will trigger studentId update)
+    const isClassBeingUpdated = updateData.class !== undefined;
+
     // Handle class and section update if provided
     if (updateData.className !== undefined) {
       updateData.className = updateData.className === '' ? null : updateData.className;
@@ -257,11 +260,27 @@ router.put("/update-student/:id", async (req, res) => {
       updateData.section = updateData.section === '' ? null : updateData.section;
     }
     
-    const student = await Student.findByIdAndUpdate(
-      id,
-      updateData,
-      { new: true }
-    ).select('-password');
+    let student;
+    
+    // If class is being updated, use save() to trigger pre-save middleware
+    if (isClassBeingUpdated) {
+      student = await Student.findById(id);
+      if (!student) {
+        return res.status(404).json({ message: "Student not found" });
+      }
+      
+      // Update the student document with new data
+      Object.assign(student, updateData);
+      await student.save(); // This will trigger the pre-save middleware
+      student = await Student.findById(id).select('-password');
+    } else {
+      // For non-class updates, use findByIdAndUpdate for efficiency
+      student = await Student.findByIdAndUpdate(
+        id,
+        updateData,
+        { new: true }
+      ).select('-password');
+    }
 
     if (!student) {
       return res.status(404).json({ message: "Student not found" });

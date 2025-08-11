@@ -161,15 +161,51 @@ router.get('/:id/stats', auth.authenticateAdmin, async (req, res) => {
 router.get('/:id/details', auth.authenticateStudent, async (req, res) => {
   try {
     const { id } = req.params;
-    const classData = await Class.findById(id).populate({
-      path: 'subjects',
-      populate: { path: 'teacher', select: 'fullname' }
-    });
-    console.log('classData:', classData);
+    const Teacher = require('../models/teacher');
+    
+    // Find the class first
+    const classData = await Class.findById(id);
     if (!classData) {
       return res.status(404).json({ message: 'Class not found.' });
     }
-    res.status(200).json({ class: classData });
+    
+    // Find teachers assigned to this class and their subjects
+    const teachers = await Teacher.find({ 
+      classes: id,
+      isVerified: true 
+    }).select('fullname subjects');
+    
+    // Create a subjects array with teacher information
+    const subjectsWithTeachers = [];
+    teachers.forEach(teacher => {
+      if (teacher.subjects && teacher.subjects.length > 0) {
+        teacher.subjects.forEach(subjectName => {
+          subjectsWithTeachers.push({
+            name: subjectName,
+            teacher: {
+              fullname: teacher.fullname
+            }
+          });
+        });
+      }
+    });
+    
+    // Remove duplicate subjects (in case multiple teachers teach the same subject)
+    const uniqueSubjects = subjectsWithTeachers.filter((subject, index, self) => 
+      index === self.findIndex(s => s.name === subject.name)
+    );
+    
+    console.log('Class details for student:', {
+      class: classData,
+      subjects: uniqueSubjects
+    });
+    
+    res.status(200).json({ 
+      class: {
+        ...classData.toObject(),
+        subjects: uniqueSubjects
+      }
+    });
   } catch (error) {
     console.error('Error fetching class details:', error);
     res.status(500).json({ message: 'Server error' });
