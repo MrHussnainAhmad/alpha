@@ -122,10 +122,10 @@ router.get("/my-vouchers", authenticateStudent, async (req, res) => {
   }
 });
 
-// Admin: Get all fee vouchers with search
+// Admin: Get all fee vouchers with search and class filter
 router.get("/admin/all", authenticateAdmin, async (req, res) => {
   try {
-    const { search } = req.query;
+    const { search, classId } = req.query;
     let query = {};
 
     if (search) {
@@ -137,8 +137,18 @@ router.get("/admin/all", authenticateAdmin, async (req, res) => {
       ];
     }
 
+    // If classId is provided, filter by class
+    if (classId && classId !== '') {
+      // First, get all students in the specified class
+      const studentsInClass = await Student.find({ class: classId }).select('_id');
+      const studentIds = studentsInClass.map(student => student._id);
+      
+      // Then filter fee vouchers by these student IDs
+      query.student = { $in: studentIds };
+    }
+
     const feeVouchers = await FeeVoucher.find(query)
-      .populate('student', 'fullname profilePicture') // Populate student details
+      .populate('student', 'fullname profilePicture class') // Populate student details and class
       .sort({ uploadedAt: -1 });
 
     console.log('Backend: FeeVouchers after populate:', JSON.stringify(feeVouchers, null, 2));

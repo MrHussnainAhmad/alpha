@@ -198,7 +198,9 @@ router.put("/profile", async (req, res) => {
 // Get all students (teacher function)
 router.get("/students", async (req, res) => {
   try {
-    const students = await Student.find({ isActive: true }).select('-password');
+    const students = await Student.find({ isActive: true })
+      .select('-password')
+      .populate('class', 'classNumber section name'); // Populate class data
     res.status(200).json({ students });
   } catch (error) {
     res.status(500).json({ message: error.message });
@@ -272,14 +274,14 @@ router.put("/update-student/:id", async (req, res) => {
       // Update the student document with new data
       Object.assign(student, updateData);
       await student.save(); // This will trigger the pre-save middleware
-      student = await Student.findById(id).select('-password');
+      student = await Student.findById(id).select('-password').populate('class', 'classNumber section name');
     } else {
       // For non-class updates, use findByIdAndUpdate for efficiency
       student = await Student.findByIdAndUpdate(
         id,
         updateData,
         { new: true }
-      ).select('-password');
+      ).select('-password').populate('class', 'classNumber section name');
     }
 
     if (!student) {
@@ -339,7 +341,7 @@ router.get('/verified-students', authenticateTeacher, async (req, res) => {
     }
 
     console.log('Backend query for students:', query);
-    const students = await Student.find(query).select('-password'); // Removed populate
+    const students = await Student.find(query).select('-password').populate('class', 'classNumber section name');
     res.status(200).json({ students });
   } catch (error) {
     console.error('Error fetching verified students:', error);
