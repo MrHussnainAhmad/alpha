@@ -373,8 +373,6 @@ router.put("/student", authenticateStudent, async (req, res) => {
       return res.status(404).json({ message: "Student not found" });
     }
 
-    const updateData = {};
-
     // Prevent student from changing rollNumber if it's already assigned and different from the new value
     if (student.rollNumber && student.rollNumber.length > 0 && rollNumber && student.rollNumber !== rollNumber) {
       return res.status(400).json({ message: "Roll number cannot be changed once assigned." });
@@ -387,24 +385,24 @@ router.put("/student", authenticateStudent, async (req, res) => {
       if (!classDoc) {
         return res.status(400).json({ message: "Invalid class selected." });
       }
-      updateData.class = classId;
-      updateData.hasClassAndSectionSet = true; // Still set this to true if classId is provided
+      student.class = classId;
+      student.hasClassAndSectionSet = true; // Still set this to true if classId is provided
     }
 
     if (section !== undefined && section !== null && section !== '') {
-      updateData.section = section;
+      student.section = section;
     }
 
     // Update basic fields if provided
-    if (name) updateData.fullname = name.trim();
-    if (email) updateData.email = email.trim();
-    if (phone) updateData.phoneNumber = phone.trim();
-    if (address) updateData.address = address.trim();
-    if (fatherName) updateData.fathername = fatherName.trim();
-    if (motherName) updateData.mothername = motherName.trim();
-    if (dateOfBirth) updateData.dob = new Date(dateOfBirth);
-    if (gender) updateData.gender = gender;
-    if (rollNumber) updateData.rollNumber = rollNumber.trim();
+    if (name) student.fullname = name.trim();
+    if (email) student.email = email.trim();
+    if (phone) student.phoneNumber = phone.trim();
+    if (address) student.address = address.trim();
+    if (fatherName) student.fathername = fatherName.trim();
+    if (motherName) student.mothername = motherName.trim();
+    if (dateOfBirth) student.dob = new Date(dateOfBirth);
+    if (gender) student.gender = gender;
+    if (rollNumber) student.rollNumber = rollNumber.trim();
 
     // Handle profile image update
     if (profileImageBase64 && profileImageType) {
@@ -423,8 +421,8 @@ router.put("/student", authenticateStudent, async (req, res) => {
           `data:${profileImageType};base64,${profileImageBase64}`,
           'profiles'
         );
-        updateData.profilePicture = imageResult.url;
-        console.log('Backend: updateData.profilePicture set to:', updateData.profilePicture);
+        student.profilePicture = imageResult.url;
+        console.log('Backend: student.profilePicture set to:', student.profilePicture);
       } catch (error) {
         return res.status(400).json({ 
           message: "Error uploading profile image", 
@@ -435,18 +433,12 @@ router.put("/student", authenticateStudent, async (req, res) => {
 
     // Handle password update
     if (password && password.length >= 6) {
-      updateData.password = await bcrypt.hash(password, 10);
+      student.password = await bcrypt.hash(password, 10);
     }
 
-    console.log('Backend: updateData before findByIdAndUpdate:', updateData); // Added console.log
-    // Update student
-    const updatedStudent = await Student.findByIdAndUpdate(
-      req.user.id,
-      updateData,
-      { new: true }
-    ).select('-password');
+    // Save the updated student document
+    const updatedStudent = await student.save();
 
-    console.log('Backend: updatedStudent after findByIdAndUpdate:', updatedStudent); // Added console.log
     const profile = {
       name: updatedStudent.fullname || '',
       email: updatedStudent.email || '',

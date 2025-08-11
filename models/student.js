@@ -152,15 +152,20 @@ const studentSchema = new mongoose.Schema({
 
 // Pre-save middleware to generate student ID when class is assigned
 studentSchema.pre('save', async function(next) {
+  console.log('Entering pre-save middleware for studentId generation');
+  console.log(`isModified('class'): ${this.isModified('class')}`);
+  console.log(`this.class: ${this.class}`);
   if (this.isModified('class') && this.class) {
     const studentClass = await Class.findById(this.class);
     if (studentClass) {
       // Generate new studentId based on class
       const newStudentId = generateStudentId(this.fullname, studentClass.classNumber);
+      console.log(`newStudentId: ${newStudentId}`);
       
       // Update studentId if it doesn't exist or if it contains 'Unassigned'
       if (!this.studentId || this.studentId.includes('Unassigned')) {
         this.studentId = newStudentId;
+        console.log(`this.studentId after update: ${this.studentId}`);
       }
     }
   }

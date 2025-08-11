@@ -157,4 +157,23 @@ router.get('/:id/stats', auth.authenticateAdmin, async (req, res) => {
   }
 });
 
+// Get class details with teachers and subjects
+router.get('/:id/details', auth.authenticateStudent, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const classData = await Class.findById(id).populate({
+      path: 'subjects',
+      populate: { path: 'teacher', select: 'fullname' }
+    });
+    console.log('classData:', classData);
+    if (!classData) {
+      return res.status(404).json({ message: 'Class not found.' });
+    }
+    res.status(200).json({ class: classData });
+  } catch (error) {
+    console.error('Error fetching class details:', error);
+    res.status(500).json({ message: 'Server error' });
+  }
+});
+
 module.exports = router;
