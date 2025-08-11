@@ -869,7 +869,7 @@ router.post('/assign-subjects-with-timetable', authenticateAdmin, async (req, re
     // Create timetable entries
     const timetableEntries = [];
     for (const assignment of subjectAssignments) {
-      const { subject, classId, day, timeSlot } = assignment;
+      const { subject, classId, days, timeSlot } = assignment;
       
       // Validate that the class is assigned to this teacher
       if (!teacher.classes.includes(classId)) {
@@ -878,31 +878,36 @@ router.post('/assign-subjects-with-timetable', authenticateAdmin, async (req, re
         });
       }
 
-      // Check for time slot conflicts
-      const existingSlot = await Timetable.findOne({
-        class: classId,
-        day: day,
-        timeSlot: timeSlot,
-        isActive: true
-      });
-
-      if (existingSlot) {
-        return res.status(400).json({ 
-          message: `Time slot ${timeSlot} on ${day} is already occupied for this class` 
+      // Handle multiple days
+      const daysToProcess = Array.isArray(days) ? days : [days];
+      
+      for (const day of daysToProcess) {
+        // Check for time slot conflicts
+        const existingSlot = await Timetable.findOne({
+          class: classId,
+          day: day,
+          timeSlot: timeSlot,
+          isActive: true
         });
+
+        if (existingSlot) {
+          return res.status(400).json({ 
+            message: `Time slot ${timeSlot} on ${day} is already occupied for this class` 
+          });
+        }
+
+        // Create timetable entry
+        const timetableEntry = new Timetable({
+          class: classId,
+          day: day,
+          timeSlot: timeSlot,
+          subject: subject,
+          teacher: teacherId
+        });
+
+        await timetableEntry.save();
+        timetableEntries.push(timetableEntry);
       }
-
-      // Create timetable entry
-      const timetableEntry = new Timetable({
-        class: classId,
-        day: day,
-        timeSlot: timeSlot,
-        subject: subject,
-        teacher: teacherId
-      });
-
-      await timetableEntry.save();
-      timetableEntries.push(timetableEntry);
     }
     
     // Populate the teacher data for response
