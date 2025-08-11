@@ -89,6 +89,10 @@ const studentSchema = new mongoose.Schema({
     ref: 'Class',
     default: null
   },
+  className: {
+    type: String,
+    trim: true
+  },
   section: {
     type: String,
     trim: true
@@ -170,6 +174,10 @@ studentSchema.pre('save', async function(next) {
         this.studentId = newStudentId;
         console.log(`this.studentId after update: ${this.studentId}`);
       }
+      
+      // Also update className field
+      this.className = `${studentClass.classNumber}-${studentClass.section}`;
+      console.log(`className updated: ${this.className}`);
     }
   }
   next();

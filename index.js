@@ -15,6 +15,7 @@ const classQuestionRoutes = require("./routes/classQuestions.js");
 const profileRoutes = require("./routes/profile.js");
 const subjectRoutes = require("./routes/subjects.js");
 const gradeRoutes = require("./routes/grades.js");
+const postRoutes = require("./routes/posts.js");
 const { CloudinaryStorage } = require("multer-storage-cloudinary");
 
 // Import models
@@ -69,6 +70,7 @@ app.use("/api/student", studentRoutes);
 app.use("/api/classes", classRoutes);
 app.use("/api/subjects", subjectRoutes);
 app.use("/api/grades", gradeRoutes);
+app.use("/api/posts", postRoutes);
 
 // Public app configuration endpoint (no authentication required)
 app.get("/api/app-config", async (req, res) => {

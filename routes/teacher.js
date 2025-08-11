@@ -476,7 +476,7 @@ router.post('/assign-student-class', authenticateTeacher, async (req, res) => {
     if (!classDoc) {
       return res.status(400).json({ message: 'Invalid class ID.' });
     }
-    const className = classDoc.name;
+    const className = `${classDoc.classNumber}-${classDoc.section}`;
 
     // Check if student is already assigned to this class and section
     if (student.className === className && student.section === section) {

@@ -364,13 +364,13 @@ router.get("/stats", async (req, res) => {
   try {
     const teachersCount = await Teacher.countDocuments({ isActive: true });
     const studentsCount = await Student.countDocuments({ isActive: true });
-    const announcementsCount = await Announcement.countDocuments();
+    const postsCount = await require('../models/post').countDocuments({ isActive: true });
     
     res.status(200).json({
       stats: {
         teachers: teachersCount,
         students: studentsCount,
-        announcements: announcementsCount
+        posts: postsCount
       }
     });
   } catch (error) {
@@ -394,7 +394,7 @@ router.put("/update-student/:id", async (req, res) => {
     if (updateData.class && updateData.section) {
       const classDoc = await Class.findById(updateData.class);
       if (classDoc) {
-        updateData.className = classDoc.name; // Store class name as string
+        updateData.className = `${classDoc.classNumber}-${classDoc.section}`; // Store class name as string
         updateData.section = updateData.section; // Store section as string
       } else {
         // Handle case where class is not found, maybe return an error
