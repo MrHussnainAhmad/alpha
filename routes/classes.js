@@ -45,6 +45,61 @@ router.get('/public', async (req, res) => {
   }
 });
 
+// Get classes statistics - MUST be before /:id routes to avoid conflicts
+router.get('/stats', async (req, res) => {
+  console.log('GET /classes/stats endpoint hit');
+  try {
+    const Teacher = require('../models/teacher');
+    const Student = require('../models/student');
+    
+    // Get all classes
+    const classes = await Class.find({});
+    console.log('Found classes:', classes.length);
+    
+    // Get statistics for each class
+    const classesWithStats = await Promise.all(classes.map(async (classItem) => {
+      const teachersCount = await Teacher.countDocuments({ 
+        classes: classItem._id,
+        isVerified: true 
+      });
+      
+      const studentsCount = await Student.countDocuments({ 
+        class: classItem._id,
+        isActive: true 
+      });
+      
+      // For now, subjects count is 0 (would need to implement subject-class relationship)
+      const subjectsCount = 0;
+      
+      return {
+        _id: classItem._id,
+        classNumber: classItem.classNumber,
+        section: classItem.section,
+        stats: {
+          totalStudents: studentsCount,
+          assignedTeachers: teachersCount,
+          subjects: subjectsCount
+        }
+      };
+    }));
+    
+    console.log('Sending response with classes:', classesWithStats.length);
+    res.status(200).json({ 
+      classes: classesWithStats,
+      totalClasses: classes.length
+    });
+  } catch (error) {
+    console.error('Error fetching classes stats:', error);
+    res.status(500).json({ message: 'Server error' });
+  }
+});
+
+// Test route to verify endpoint is working
+router.get('/test', (req, res) => {
+  console.log('GET /classes/test endpoint hit');
+  res.status(200).json({ message: 'Classes test endpoint working' });
+});
+
 // Update a class
 router.put('/:id', auth.authenticateAdmin, async (req, res) => {
   try {
