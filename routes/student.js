@@ -30,19 +30,23 @@ router.post("/login", async (req, res) => {
       { expiresIn: "24h" }
     );
 
+    // Create a response object without the password
+    const studentResponse = {
+      id: student._id,
+      fullname: student.fullname,
+      studentId: student.studentId,
+      email: student.email,
+      class: student.class, // This will be the ObjectId
+      className: student.className,
+      section: student.section,
+      profilePicture: student.profilePicture,
+      specialStudentId: student.specialStudentId
+    };
+
     res.status(200).json({ 
       message: "Login successful",
       token,
-      student: {
-        id: student._id,
-        fullname: student.fullname,
-        studentId: student.studentId,
-        email: student.email,
-        className: student.className,
-        section: student.section,
-        profilePicture: student.profilePicture,
-        specialStudentId: student.specialStudentId
-      }
+      student: studentResponse
     });
   } catch (error) {
     res.status(500).json({ message: error.message });
