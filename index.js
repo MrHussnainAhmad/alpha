@@ -202,10 +202,7 @@ function printRoutes(app) {
 }
 
 mongoose
-  .connect(process.env.MONGO_URL, {
-    useNewUrlParser: true,
-    useUnifiedTopology: true,
-  })
+  .connect(process.env.MONGO_URL)
   .then(() => {
     app.listen(process.env.PORT || 5000, () => {
       console.log(`Server is running on port ${process.env.PORT || 5000}`);
