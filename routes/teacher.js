@@ -559,6 +559,29 @@ router.get("/subjects", async (req, res) => {
   }
 });
 
+// Get teacher's assigned classes
+router.get("/classes", authenticateTeacher, async (req, res) => {
+  try {
+    const teacher = await Teacher.findById(req.user.id).populate('classes', 'classNumber section');
+    
+    if (!teacher || !teacher.classes || teacher.classes.length === 0) {
+      return res.status(404).json({ message: 'No classes assigned to this teacher' });
+    }
+
+    res.status(200).json({ 
+      classes: teacher.classes.map(cls => ({
+        id: cls._id,
+        name: `${cls.classNumber}-${cls.section}`,
+        classNumber: cls.classNumber,
+        section: cls.section
+      }))
+    });
+  } catch (error) {
+    console.error('Error fetching teacher classes:', error);
+    res.status(500).json({ message: 'Server error' });
+  }
+});
+
 // Debug endpoint to check teacher and student data
 router.get('/debug-data', authenticateTeacher, async (req, res) => {
   try {
