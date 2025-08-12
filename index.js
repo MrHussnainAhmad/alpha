@@ -26,9 +26,19 @@ dotenv.config();
 
 const app = express();
 
+// CORS configuration - Allow all origins for now
+app.use(cors({ 
+  origin: '*',
+  credentials: true,
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization']
+}));
+
+// Body parser middleware - simplified to avoid parsing errors
 app.use(express.json({ limit: '50mb' }));
 app.use(express.urlencoded({ limit: '50mb', extended: true }));
-app.use(cors({ origin: '*' }));
+app.use(express.text());
+app.use(express.raw());
 
 cloudinary.config({
   cloud_name: process.env.CLOUDINARY_NAME,
@@ -59,6 +69,23 @@ const announcementStorage = new CloudinaryStorage({
 const uploadProfile = multer({ storage: profileStorage });
 
 const uploadAnnouncement = multer({ storage: announcementStorage });
+
+// Health check endpoint
+app.get("/", (req, res) => {
+  res.json({ 
+    status: "ok", 
+    message: "Alpha Education API is running",
+    timestamp: new Date().toISOString()
+  });
+});
+
+app.get("/api", (req, res) => {
+  res.json({ 
+    status: "ok", 
+    message: "API endpoints are available",
+    version: "1.0.0"
+  });
+});
 
 // Use routes with specific prefixes
 app.use("/api/admin", adminRoutes);
@@ -132,6 +159,24 @@ app.post("/api/upload-announcement-images", uploadAnnouncement.array("images", 5
   } catch (error) {
     res.status(500).json({ message: error.message });
   }
+});
+
+// Error handling middleware
+app.use((err, req, res, next) => {
+  console.error('Error:', err.message);
+  console.error('Stack:', err.stack);
+  
+  if (err.message === 'Invalid JSON') {
+    return res.status(400).json({ 
+      error: 'Invalid JSON format in request body',
+      message: err.message 
+    });
+  }
+  
+  res.status(err.status || 500).json({
+    error: 'Internal Server Error',
+    message: err.message
+  });
 });
 
 // Import cleanup scheduler
