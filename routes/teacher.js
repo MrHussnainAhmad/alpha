@@ -532,8 +532,22 @@ router.get("/dashboard-stats", authenticateTeacher, async (req, res) => {
     const studentCount = await Student.countDocuments({ isActive: true }); // Still count all students for now
     const classCount = teacher.classes.length;
 
-    // Placeholder for assignments
-    const assignmentCount = 0; // To be implemented
+    // Count teacher's assignments
+    const Assignment = require('../models/assignment');
+    
+    // Debug: Get all assignments for this teacher
+    const allAssignments = await Assignment.find({ teacher: teacherId });
+    const activeAssignments = await Assignment.find({ teacher: teacherId, isActive: true });
+    
+    console.log('Teacher ID:', teacherId);
+    console.log('All assignments count:', allAssignments.length);
+    console.log('Active assignments count:', activeAssignments.length);
+    console.log('All assignments:', allAssignments.map(a => ({ id: a._id, title: a.title, isActive: a.isActive })));
+    
+    const assignmentCount = await Assignment.countDocuments({ 
+      teacher: teacherId, 
+      isActive: true 
+    });
 
     res.status(200).json({
       success: true,
@@ -542,6 +556,12 @@ router.get("/dashboard-stats", authenticateTeacher, async (req, res) => {
         classes: classCount,
         assignments: assignmentCount,
       },
+      debug: {
+        teacherId,
+        allAssignmentsCount: allAssignments.length,
+        activeAssignmentsCount: activeAssignments.length,
+        allAssignments: allAssignments.map(a => ({ id: a._id, title: a.title, isActive: a.isActive }))
+      }
     });
   } catch (error) {
     console.error('Error fetching teacher dashboard stats:', error);
@@ -603,6 +623,12 @@ router.get('/debug-data', authenticateTeacher, async (req, res) => {
       }).select('fullname className section isVerified isActive');
     }
     
+    // Debug assignments
+    const Assignment = require('../models/assignment');
+    const allAssignments = await Assignment.find({});
+    const teacherAssignments = await Assignment.find({ teacher: teacherId });
+    const activeTeacherAssignments = await Assignment.find({ teacher: teacherId, isActive: true });
+    
     res.status(200).json({
       teacher: {
         id: teacher._id,
@@ -612,7 +638,19 @@ router.get('/debug-data', authenticateTeacher, async (req, res) => {
       allStudentsCount: allStudents.length,
       teacherStudentsCount: teacherStudents.length,
       allStudents: allStudents.slice(0, 5), // First 5 students
-      teacherStudents: teacherStudents.slice(0, 5) // First 5 teacher students
+      teacherStudents: teacherStudents.slice(0, 5), // First 5 teacher students
+      assignments: {
+        totalInSystem: allAssignments.length,
+        teacherTotal: teacherAssignments.length,
+        teacherActive: activeTeacherAssignments.length,
+        teacherAssignments: teacherAssignments.map(a => ({
+          id: a._id,
+          title: a.title,
+          teacher: a.teacher,
+          isActive: a.isActive,
+          createdAt: a.createdAt
+        }))
+      }
     });
   } catch (error) {
     console.error('Debug endpoint error:', error);

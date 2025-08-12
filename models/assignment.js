@@ -43,7 +43,7 @@ const assignmentSchema = new mongoose.Schema({
   },
   dueDate: {
     type: Date,
-    required: true
+    required: false
   },
   images: [{
     type: String, // Cloudinary URLs for assignment images

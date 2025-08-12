@@ -62,6 +62,29 @@ router.get('/teacher/classes', auth.authenticateTeacher, async (req, res) => {
   }
 });
 
+// Get teacher's subjects for a specific class
+router.get('/teacher/subjects/:classId', auth.authenticateTeacher, async (req, res) => {
+  try {
+    const { classId } = req.params;
+    
+    // Check if teacher is assigned to this class
+    const teacher = await Teacher.findById(req.user.id);
+    const isAssignedToClass = teacher.classes.some(cls => cls.toString() === classId);
+    
+    if (!isAssignedToClass) {
+      return res.status(403).json({ message: 'You are not assigned to this class' });
+    }
+
+    // Return teacher's subjects
+    res.status(200).json({ 
+      subjects: teacher.subjects || []
+    });
+  } catch (error) {
+    console.error('Error fetching teacher subjects:', error);
+    res.status(500).json({ message: 'Server error' });
+  }
+});
+
 // Create new assignment
 router.post('/create', auth.authenticateTeacher, upload.array('files', 10), async (req, res) => {
   try {
@@ -70,12 +93,11 @@ router.post('/create', auth.authenticateTeacher, upload.array('files', 10), asyn
       description,
       subject,
       classId,
-      dueDate,
       priority
     } = req.body;
 
     // Validate required fields
-    if (!title || !description || !subject || !classId || !dueDate) {
+    if (!title || !description || !subject || !classId) {
       return res.status(400).json({ message: 'All required fields must be provided' });
     }
 
@@ -143,13 +165,23 @@ router.post('/create', auth.authenticateTeacher, upload.array('files', 10), asyn
       class: classId,
       className: `${classData.classNumber}-${classData.section}`,
       section: classData.section,
-      dueDate: new Date(dueDate),
       images: uploadedImages,
       attachments: uploadedFiles,
       priority: priority || 'medium'
     });
 
+    console.log('Creating assignment with teacher ID:', req.user.id);
+    console.log('Assignment data:', {
+      title,
+      teacher: req.user.id,
+      teacherName: teacher.fullname,
+      isActive: assignment.isActive
+    });
+
     await assignment.save();
+    
+    console.log('Assignment created successfully with ID:', assignment._id);
+    console.log('Assignment isActive:', assignment.isActive);
 
     // Get total students in the class for statistics
     const studentCount = await Student.countDocuments({ class: classId, isActive: true });
@@ -163,7 +195,6 @@ router.post('/create', auth.authenticateTeacher, upload.array('files', 10), asyn
         title: assignment.title,
         subject: assignment.subject,
         className: assignment.className,
-        dueDate: assignment.dueDate,
         priority: assignment.priority,
         totalStudents: assignment.totalStudents
       }
@@ -174,15 +205,73 @@ router.post('/create', auth.authenticateTeacher, upload.array('files', 10), asyn
   }
 });
 
-// Get assignments for a specific class (for students)
+// Get assignments for student's class (no classId needed)
+router.get('/student/assignments', auth.authenticateStudent, async (req, res) => {
+  try {
+    // Get student data
+    const student = await Student.findById(req.user.id);
+    
+    console.log('Student data:', {
+      id: student._id,
+      className: student.className,
+      class: student.class,
+      classType: typeof student.class
+    });
+    
+    // Check if student has a class assigned
+    if (!student.class) {
+      return res.status(404).json({ message: 'Student not assigned to any class' });
+    }
+    
+    // Get assignments for student's class
+    const assignments = await Assignment.getClassAssignments(student.class);
+    
+    res.status(200).json({ assignments });
+  } catch (error) {
+    console.error('Error fetching student assignments:', error);
+    res.status(500).json({ message: 'Server error' });
+  }
+});
+
+// Get assignments for a specific class (for students) - keeping for backward compatibility
 router.get('/class/:classId', auth.authenticateStudent, async (req, res) => {
   try {
     const { classId } = req.params;
     
     // Check if student belongs to this class
     const student = await Student.findById(req.user.id);
-    if (student.class.toString() !== classId) {
-      return res.status(403).json({ message: 'Access denied' });
+    
+    // Debug logging
+    console.log('Student data:', {
+      id: student._id,
+      className: student.className,
+      class: student.class,
+      classType: typeof student.class
+    });
+    console.log('Requested classId:', classId);
+    
+    // First try to find the class by ID to get the class name
+    const Class = require('../models/class');
+    const classData = await Class.findById(classId);
+    
+    if (!classData) {
+      return res.status(404).json({ message: 'Class not found' });
+    }
+    
+    const className = `${classData.classNumber}-${classData.section}`;
+    console.log('Class name from ID:', className);
+    console.log('Student className:', student.className);
+    
+    // Check if student belongs to this class by comparing class names
+    if (student.className !== className) {
+      return res.status(403).json({ 
+        message: 'Access denied - student not in this class',
+        debug: {
+          studentClassName: student.className,
+          requestedClassName: className,
+          studentClass: student.class
+        }
+      });
     }
 
     const assignments = await Assignment.getClassAssignments(classId);
@@ -241,7 +330,6 @@ router.put('/:id', auth.authenticateTeacher, upload.array('files', 10), async (r
       title,
       description,
       subject,
-      dueDate,
       priority,
       status
     } = req.body;
@@ -304,7 +392,6 @@ router.put('/:id', auth.authenticateTeacher, upload.array('files', 10), async (r
     if (title) assignment.title = title;
     if (description) assignment.description = description;
     if (subject) assignment.subject = subject;
-    if (dueDate) assignment.dueDate = new Date(dueDate);
     if (priority) assignment.priority = priority;
     if (status) assignment.status = status;
 
