@@ -731,18 +731,41 @@ router.post('/unassign-class', authenticateAdmin, async (req, res) => {
 // Get teachers with assigned classes (for subject management)
 router.get('/teachers-with-classes', authenticateAdmin, async (req, res) => {
   try {
+    const Timetable = require('../models/timetable');
+
     // Find teachers who have classes assigned and are verified
-    const teachers = await Teacher.find({ 
-      isVerified: true, 
-      classes: { $exists: true, $not: { $size: 0 } } 
+    const teachers = await Teacher.find({
+      isVerified: true,
+      classes: { $exists: true, $not: { $size: 0 } }
     })
-    .populate('classes', 'name level')
-    .select('fullname email teacherId classes subjects')
-    .lean();
+    .populate('classes', 'name classNumber section') // Populate class details
+    .lean(); // Use .lean() for plain JavaScript objects
+
+    // For each teacher, fetch their assigned subjects with class details from Timetable
+    const teachersWithDetailedSubjects = await Promise.all(teachers.map(async (teacher) => {
+      const detailedSubjects = await Timetable.find({
+        teacher: teacher._id,
+        isActive: true
+      })
+      .populate('class', 'name classNumber section') // Populate class details for timetable entries
+      .select('subject class day timeSlot')
+      .lean();
+
+      // Map detailedSubjects to a more consumable format for the frontend
+      const assignedSubjectsWithClasses = detailedSubjects.map(entry => ({
+        subject: entry.subject,
+        class: entry.class ? `${entry.class.classNumber}-${entry.class.section}` : 'N/A',
+        classId: entry.class ? entry.class._id : null,
+        day: entry.day,
+        timeSlot: entry.timeSlot,
+      }));
+
+      return { ...teacher, assignedSubjectsWithClasses };
+    }));
 
     res.json({
       success: true,
-      teachers: teachers || []
+      teachers: teachersWithDetailedSubjects || []
     });
   } catch (error) {
     console.error('Error fetching teachers with classes:', error);
