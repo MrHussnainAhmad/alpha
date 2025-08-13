@@ -399,4 +399,70 @@ router.post("/admin/test-notification", authenticateAdmin, async (req, res) => {
   }
 });
 
+// Manual push token registration (for testing without auth)
+router.post("/manual-register-token", async (req, res) => {
+  try {
+    const { userId, userType, token, deviceId } = req.body;
+    
+    if (!userId || !userType || !token || !deviceId) {
+      return res.status(400).json({
+        success: false,
+        message: 'userId, userType, token, and deviceId are required'
+      });
+    }
+    
+    const result = await NotificationService.savePushToken(
+      userId,
+      userType,
+      token,
+      deviceId
+    );
+    
+    res.status(200).json({
+      success: true,
+      message: 'Push token registered successfully',
+      ...result
+    });
+  } catch (error) {
+    console.error('Error manually registering push token:', error);
+    res.status(500).json({
+      success: false,
+      message: error.message || 'Failed to register push token'
+    });
+  }
+});
+
+// Send immediate test notification to specific token (no auth required)
+router.post("/test-direct", async (req, res) => {
+  try {
+    const { token, title, body } = req.body;
+    
+    if (!token) {
+      return res.status(400).json({
+        success: false,
+        message: 'Token is required'
+      });
+    }
+    
+    const results = await NotificationService.sendPushNotifications(
+      [token],
+      title || 'Direct Test Notification',
+      body || 'This is a direct test notification!',
+      { type: 'direct_test', timestamp: new Date().toISOString() }
+    );
+    
+    res.status(200).json({
+      success: true,
+      message: 'Direct test notification sent',
+      results: results
+    });
+  } catch (error) {
+    console.error('Error sending direct test notification:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to send direct test notification'
+    });
+  }
+});
+
 module.exports = router;

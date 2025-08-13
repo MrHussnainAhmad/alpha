@@ -1,0 +1,251 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Push Token Registration</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        .container {
+            background-color: white;
+            padding: 30px;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        .form-group {
+            margin-bottom: 20px;
+        }
+        label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: bold;
+            color: #333;
+        }
+        input, select, textarea {
+            width: 100%;
+            padding: 10px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            font-size: 16px;
+        }
+        textarea {
+            height: 80px;
+            resize: vertical;
+        }
+        button {
+            background-color: #007bff;
+            color: white;
+            padding: 12px 24px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 16px;
+            margin-right: 10px;
+        }
+        button:hover {
+            background-color: #0056b3;
+        }
+        .test-btn {
+            background-color: #28a745;
+        }
+        .test-btn:hover {
+            background-color: #1e7e34;
+        }
+        .result {
+            margin-top: 20px;
+            padding: 15px;
+            border-radius: 4px;
+        }
+        .success {
+            background-color: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+        }
+        .error {
+            background-color: #f8d7da;
+            color: #721c24;
+            border: 1px solid #f5c6cb;
+        }
+        .info {
+            background-color: #e2e3e5;
+            color: #383d41;
+            border: 1px solid #d6d8db;
+            margin-bottom: 20px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🔔 Push Token Registration Tool</h1>
+        
+        <div class="info">
+            <h3>Instructions:</h3>
+            <ol>
+                <li>Open your mobile app on both devices</li>
+                <li>Check the console logs for "Push token: ExponentPushToken[...]" messages</li>
+                <li>Copy those tokens and paste them below</li>
+                <li>Select the correct user for each device</li>
+                <li>Click "Register Token" to save them</li>
+                <li>Click "Send Test Notification" to test</li>
+            </ol>
+        </div>
+
+        <form id="tokenForm">
+            <div class="form-group">
+                <label for="userSelect">Select User:</label>
+                <select id="userSelect" required>
+                    <option value="">Select a user...</option>
+                </select>
+            </div>
+
+            <div class="form-group">
+                <label for="pushToken">Push Token:</label>
+                <textarea id="pushToken" placeholder="ExponentPushToken[...your token here...]" required></textarea>
+            </div>
+
+            <div class="form-group">
+                <label for="deviceId">Device ID (optional):</label>
+                <input type="text" id="deviceId" placeholder="my_device_001" />
+            </div>
+
+            <button type="submit">Register Token</button>
+            <button type="button" class="test-btn" onclick="sendTestNotification()">Send Test Notification</button>
+        </form>
+
+        <div id="result"></div>
+    </div>
+
+    <script>
+        const API_BASE_URL = 'http://192.168.3.51:5000/api';
+        
+        // Load available users when page loads
+        window.onload = async function() {
+            await loadUsers();
+        };
+
+        async function loadUsers() {
+            try {
+                // Get teachers
+                const teacherResponse = await fetch(`${API_BASE_URL}/admin/teachers`, {
+                    headers: {
+                        'Authorization': 'Bearer YOUR_ADMIN_TOKEN_HERE' // You'll need to replace this
+                    }
+                });
+                
+                // Get students  
+                const studentResponse = await fetch(`${API_BASE_URL}/admin/students`, {
+                    headers: {
+                        'Authorization': 'Bearer YOUR_ADMIN_TOKEN_HERE' // You'll need to replace this
+                    }
+                });
+
+                const select = document.getElementById('userSelect');
+                
+                if (teacherResponse.ok) {
+                    const teachers = await teacherResponse.json();
+                    teachers.teachers?.forEach(teacher => {
+                        if (teacher.isVerified && teacher.isActive) {
+                            const option = document.createElement('option');
+                            option.value = JSON.stringify({id: teacher._id, type: 'teacher', name: teacher.fullname});
+                            option.textContent = `${teacher.fullname} (Teacher)`;
+                            select.appendChild(option);
+                        }
+                    });
+                }
+
+                if (studentResponse.ok) {
+                    const students = await studentResponse.json();
+                    students.students?.forEach(student => {
+                        if (student.isVerified && student.isActive) {
+                            const option = document.createElement('option');
+                            option.value = JSON.stringify({id: student._id, type: 'student', name: student.fullname});
+                            option.textContent = `${student.fullname} (Student)`;
+                            select.appendChild(option);
+                        }
+                    });
+                }
+            } catch (error) {
+                showResult('Error loading users: ' + error.message, 'error');
+            }
+        }
+
+        document.getElementById('tokenForm').addEventListener('submit', async function(e) {
+            e.preventDefault();
+            
+            const userSelect = document.getElementById('userSelect');
+            const pushToken = document.getElementById('pushToken').value.trim();
+            const deviceId = document.getElementById('deviceId').value.trim() || 'web_registered_' + Date.now();
+
+            if (!userSelect.value || !pushToken) {
+                showResult('Please select a user and enter a push token', 'error');
+                return;
+            }
+
+            const userData = JSON.parse(userSelect.value);
+
+            try {
+                const response = await fetch(`${API_BASE_URL}/notifications/push-token`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${userData.token}` // This would need the user's actual auth token
+                    },
+                    body: JSON.stringify({
+                        token: pushToken,
+                        deviceId: deviceId
+                    })
+                });
+
+                const result = await response.json();
+                
+                if (response.ok) {
+                    showResult(`✅ Token registered successfully for ${userData.name}!`, 'success');
+                } else {
+                    showResult(`❌ Error: ${result.message}`, 'error');
+                }
+            } catch (error) {
+                showResult(`❌ Network error: ${error.message}`, 'error');
+            }
+        });
+
+        async function sendTestNotification() {
+            try {
+                const response = await fetch(`${API_BASE_URL}/notifications/admin/test-notification`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': 'Bearer YOUR_ADMIN_TOKEN_HERE' // You'll need to replace this
+                    },
+                    body: JSON.stringify({
+                        target: 'both',
+                        title: 'Test Notification',
+                        body: 'This is a test notification from the web tool!'
+                    })
+                });
+
+                const result = await response.json();
+                
+                if (response.ok) {
+                    showResult(`✅ Test notification sent! Count: ${result.sentCount}`, 'success');
+                } else {
+                    showResult(`❌ Error sending notification: ${result.message}`, 'error');
+                }
+            } catch (error) {
+                showResult(`❌ Network error: ${error.message}`, 'error');
+            }
+        }
+
+        function showResult(message, type) {
+            const resultDiv = document.getElementById('result');
+            resultDiv.innerHTML = message;
+            resultDiv.className = `result ${type}`;
+        }
+    </script>
+</body>
+</html>

@@ -137,7 +137,7 @@ router.post('/forgot-password', async (req, res) => {
         </div>
         
         <div style="background: #333; color: white; padding: 15px; text-align: center; font-size: 12px;">
-          <p>This is an automated message from Alpha Education System</p>
+          <p>This is an automated message from Superior Science College System</p>
         </div>
       </div>
     `;
