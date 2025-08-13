@@ -1,5 +1,6 @@
 const express = require("express");
 const Announcement = require("../models/announcement");
+const Notification = require("../models/notification");
 const Admin = require("../models/admin");
 const Teacher = require("../models/teacher");
 const Student = require("../models/student");
@@ -48,6 +49,15 @@ router.post("/create", authenticateAdmin, async (req, res) => {
     });
 
     await announcement.save();
+
+    // Create notification for the announcement
+    try {
+      const notification = await Notification.createForAnnouncement(announcement);
+      console.log(`📢 Notification created for announcement: ${announcement.title}`);
+    } catch (notificationError) {
+      console.error('Error creating notification:', notificationError);
+      // Don't fail the announcement creation if notification fails
+    }
 
     res.status(201).json({
       message: "Announcement created successfully",
@@ -249,6 +259,15 @@ router.post("/teacher/create", authenticateTeacher, async (req, res) => {
     });
 
     await announcement.save();
+
+    // Create notification for the announcement
+    try {
+      const notification = await Notification.createForAnnouncement(announcement);
+      console.log(`📢 Notification created for teacher announcement: ${announcement.title}`);
+    } catch (notificationError) {
+      console.error('Error creating notification:', notificationError);
+      // Don't fail the announcement creation if notification fails
+    }
 
     res.status(201).json({
       message: "Announcement created successfully",

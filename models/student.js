@@ -149,7 +149,15 @@ const studentSchema = new mongoose.Schema({
   role: {
     type: String,
     default: "student"
-  }
+  },
+  pushTokens: [{
+    token: String,
+    deviceId: String,
+    addedAt: {
+      type: Date,
+      default: Date.now
+    }
+  }]
 }, {
   timestamps: true
 });
@@ -207,4 +215,5 @@ studentSchema.methods.assignSpecialIdForFeeVoucher = async function(rollNumber) 
   return this.specialStudentId;
 };
 
-module.exports = mongoose.model("Student", studentSchema);
+// Check if the model already exists before compiling
+module.exports = mongoose.models.Student || mongoose.model("Student", studentSchema);

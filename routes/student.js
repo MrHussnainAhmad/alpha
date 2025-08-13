@@ -40,7 +40,8 @@ router.post("/login", async (req, res) => {
       className: student.className,
       section: student.section,
       profilePicture: student.profilePicture,
-      specialStudentId: student.specialStudentId
+      specialStudentId: student.specialStudentId,
+      isVerified: student.isVerified
     };
 
     res.status(200).json({ 

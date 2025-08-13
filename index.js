@@ -1,10 +1,16 @@
 const express = require("express");
 const mongoose = require("mongoose");
 const dotenv = require("dotenv");
+const http = require("http");
+
+// Load environment variables FIRST, before importing any routes
+dotenv.config();
+
 const cors = require("cors");
 const cloudinary = require("cloudinary");
 const multer = require("multer");
-// Import all route files
+
+// Import all route files (AFTER dotenv.config())
 const adminRoutes = require("./routes/admin.js");
 const classRoutes = require("./routes/classes.js");
 const teacherRoutes = require("./routes/teacher.js");
@@ -18,14 +24,16 @@ const gradeRoutes = require("./routes/grades.js");
 const postRoutes = require("./routes/posts.js");
 const assignmentRoutes = require("./routes/assignments.js");
 const attendanceRoutes = require("./routes/attendance.js");
+const passwordResetRoutes = require("./routes/passwordReset.js");
+const notificationRoutes = require("./routes/notifications.js");
+const socketService = require("./services/socketService.js");
 const { CloudinaryStorage } = require("multer-storage-cloudinary");
 
 // Import models
 const AppConfig = require("./models/appConfig");
 
-dotenv.config();
-
 const app = express();
+const server = http.createServer(app);
 
 // CORS configuration - Allow all origins for now
 app.use(cors({ 
@@ -102,6 +110,8 @@ app.use("/api/grades", gradeRoutes);
 app.use("/api/posts", postRoutes);
 app.use("/api/assignments", assignmentRoutes);
 app.use("/api/attendance", attendanceRoutes);
+app.use("/api/password-reset", passwordResetRoutes);
+app.use("/api/notifications", notificationRoutes);
 
 // Public app configuration endpoint (no authentication required)
 app.get("/api/app-config", async (req, res) => {
@@ -124,6 +134,68 @@ app.get("/api/app-config", async (req, res) => {
         logoUrl: '',
         phoneNumber: ''
       }
+    });
+  }
+});
+
+// Manual cleanup endpoint (for testing)
+app.post("/api/cleanup-unverified", async (req, res) => {
+  try {
+    console.log('🧹 Manual cleanup requested via API');
+    const result = await cleanupUnverifiedAccounts();
+    res.status(200).json({ 
+      success: true,
+      message: "Cleanup completed successfully",
+      result: result
+    });
+  } catch (error) {
+    console.error('Manual cleanup failed:', error);
+    res.status(500).json({ 
+      success: false,
+      message: "Cleanup failed",
+      error: error.message 
+    });
+  }
+});
+
+// Get cleanup status endpoint
+app.get("/api/cleanup-status", async (req, res) => {
+  try {
+    const now = new Date();
+    const currentHour = now.getHours();
+    const isAfter5AM = currentHour >= 5;
+    
+    // Calculate next cleanup times
+    const nextHourlyCleanup = new Date(now);
+    nextHourlyCleanup.setHours(nextHourlyCleanup.getHours() + 1, 0, 0, 0);
+    
+    const next5AMCleanup = new Date(now);
+    if (currentHour >= 5) {
+      next5AMCleanup.setDate(next5AMCleanup.getDate() + 1);
+    }
+    next5AMCleanup.setHours(5, 0, 0, 0);
+    
+    res.status(200).json({
+      success: true,
+      status: {
+        currentTime: now.toLocaleString(),
+        currentHour: currentHour,
+        isAfter5AM: isAfter5AM,
+        nextHourlyCleanup: nextHourlyCleanup.toLocaleString(),
+        next5AMCleanup: next5AMCleanup.toLocaleString(),
+        timezone: "Asia/Karachi",
+        cleanupRules: {
+          "12_hour_rule": "Unverified accounts older than 12 hours are deleted",
+          "5am_rule": "After 5:00 AM, unverified accounts created before 5:00 AM today are also deleted"
+        }
+      }
+    });
+  } catch (error) {
+    console.error('Error getting cleanup status:', error);
+    res.status(500).json({
+      success: false,
+      message: "Failed to get cleanup status",
+      error: error.message
     });
   }
 });
@@ -182,7 +254,7 @@ app.use((err, req, res, next) => {
 });
 
 // Import cleanup scheduler
-const { startScheduledCleanup } = require("./scripts/cleanupUnverifiedAccounts");
+const { startScheduledCleanup, cleanupUnverifiedAccounts } = require("./scripts/cleanupUnverifiedAccounts");
 
 function printRoutes(app) {
   console.log('Registered routes:');
@@ -206,8 +278,12 @@ function printRoutes(app) {
 mongoose
   .connect(process.env.MONGO_URL)
   .then(() => {
-    app.listen(process.env.PORT || 5000, () => {
-      console.log(`Server is running on port ${process.env.PORT || 5000}`);
+    // Initialize Socket.IO service
+    socketService.initialize(server);
+    
+    server.listen(process.env.PORT || 5000, () => {
+      console.log(`🚀 Server is running on port ${process.env.PORT || 5000}`);
+      console.log(`🔌 WebSocket service ready on port ${process.env.PORT || 5000}`);
       
       // Print registered routes after server starts
       printRoutes(app);

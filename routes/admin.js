@@ -1,4 +1,5 @@
 const express = require("express");
+const mongoose = require("mongoose");
 const Admin = require("../models/admin");
 const Teacher = require("../models/teacher");
 const Student = require("../models/student");
@@ -343,19 +344,76 @@ router.put('/verify-teacher/:id', authenticateAdmin, async (req, res) => {
   }
 });
 
-// Delete teacher (admin function)
+// Delete teacher (admin function) - Enhanced with cascade deletion
 router.delete("/delete-teacher/:id", async (req, res) => {
   try {
     const { id } = req.params;
     
-    const teacher = await Teacher.findByIdAndDelete(id);
-    if (!teacher) {
-      return res.status(404).json({ message: "Teacher not found" });
+    // Validate MongoDB ObjectId format
+    if (!mongoose.Types.ObjectId.isValid(id)) {
+      return res.status(400).json({ 
+        success: false,
+        message: "Invalid teacher ID format" 
+      });
     }
-
-    res.status(200).json({ message: "Teacher deleted successfully" });
+    
+    // First check if teacher exists
+    const teacher = await Teacher.findById(id);
+    if (!teacher) {
+      return res.status(404).json({ 
+        success: false,
+        message: "Teacher not found" 
+      });
+    }
+    
+    // Store teacher info for logging
+    const teacherInfo = {
+      fullname: teacher.fullname,
+      email: teacher.email,
+      teacherId: teacher.teacherId
+    };
+    
+    // Delete related data (cascade deletion)
+    // 1. Remove teacher from any assigned classes
+    const Class = require('../models/class');
+    await Class.updateMany(
+      { teacher: id },
+      { $unset: { teacher: 1 } }
+    );
+    
+    // 2. Delete any posts created by this teacher
+    const Post = require('../models/post');
+    await Post.deleteMany({ author: id, authorModel: 'Teacher' });
+    
+    // 3. Delete any assignments created by this teacher
+    const Assignment = require('../models/assignment');
+    await Assignment.deleteMany({ teacher: id });
+    
+    // 4. Delete any grades given by this teacher
+    const Grade = require('../models/grade');
+    await Grade.deleteMany({ teacher: id });
+    
+    // 5. Delete any attendance records marked by this teacher
+    const Attendance = require('../models/attendance');
+    await Attendance.deleteMany({ markedBy: id });
+    
+    // Now delete the teacher
+    await Teacher.findByIdAndDelete(id);
+    
+    console.log(`✅ Teacher deleted successfully: ${teacherInfo.fullname} (${teacherInfo.teacherId})`);
+    
+    res.status(200).json({ 
+      success: true,
+      message: "Teacher and all related data deleted successfully",
+      deletedTeacher: teacherInfo
+    });
   } catch (error) {
-    res.status(500).json({ message: error.message });
+    console.error('❌ Error deleting teacher:', error);
+    res.status(500).json({ 
+      success: false,
+      message: "Failed to delete teacher. Please try again.",
+      error: error.message 
+    });
   }
 });
 
@@ -518,19 +576,88 @@ router.put('/verify-student/:id', authenticateAdmin, async (req, res) => {
   }
 });
 
-// Delete student (admin function)
+// Delete student (admin function) - Enhanced with cascade deletion
 router.delete("/delete-student/:id", async (req, res) => {
   try {
     const { id } = req.params;
     
-    const student = await Student.findByIdAndDelete(id);
-    if (!student) {
-      return res.status(404).json({ message: "Student not found" });
+    // Validate MongoDB ObjectId format
+    if (!mongoose.Types.ObjectId.isValid(id)) {
+      return res.status(400).json({ 
+        success: false,
+        message: "Invalid student ID format" 
+      });
     }
-
-    res.status(200).json({ message: "Student deleted successfully" });
+    
+    // First check if student exists
+    const student = await Student.findById(id);
+    if (!student) {
+      return res.status(404).json({ 
+        success: false,
+        message: "Student not found" 
+      });
+    }
+    
+    // Store student info for logging
+    const studentInfo = {
+      fullname: student.fullname,
+      email: student.email,
+      studentId: student.studentId,
+      className: student.className
+    };
+    
+    // Delete related data (cascade deletion)
+    // 1. Delete any posts created by this student
+    const Post = require('../models/post');
+    await Post.deleteMany({ author: id, authorModel: 'Student' });
+    
+    // 2. Delete any assignments submitted by this student
+    const Assignment = require('../models/assignment');
+    await Assignment.updateMany(
+      { 'submissions.student': id },
+      { $pull: { submissions: { student: id } } }
+    );
+    
+    // 3. Delete any grades for this student
+    const Grade = require('../models/grade');
+    await Grade.deleteMany({ student: id });
+    
+    // 4. Delete any attendance records for this student
+    const Attendance = require('../models/attendance');
+    await Attendance.updateMany(
+      { 'students.student': id },
+      { $pull: { students: { student: id } } }
+    );
+    
+    // 5. Delete any fee vouchers for this student
+    const FeeVoucher = require('../models/feeVoucher');
+    await FeeVoucher.deleteMany({ student: id });
+    
+    // 6. Remove student from class if assigned
+    if (student.class) {
+      await Class.updateMany(
+        { students: id },
+        { $pull: { students: id } }
+      );
+    }
+    
+    // Now delete the student
+    await Student.findByIdAndDelete(id);
+    
+    console.log(`✅ Student deleted successfully: ${studentInfo.fullname} (${studentInfo.studentId})`);
+    
+    res.status(200).json({ 
+      success: true,
+      message: "Student and all related data deleted successfully",
+      deletedStudent: studentInfo
+    });
   } catch (error) {
-    res.status(500).json({ message: error.message });
+    console.error('❌ Error deleting student:', error);
+    res.status(500).json({ 
+      success: false,
+      message: "Failed to delete student. Please try again.",
+      error: error.message 
+    });
   }
 });
 

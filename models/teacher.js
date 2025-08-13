@@ -119,11 +119,20 @@ const teacherSchema = new mongoose.Schema({
   role: {
     type: String,
     default: "teacher"
-  }
+  },
+  pushTokens: [{
+    token: String,
+    deviceId: String,
+    addedAt: {
+      type: Date,
+      default: Date.now
+    }
+  }]
 }, {
   timestamps: true
 });
 
 // Note: teacherId will only be assigned by admin, not auto-generated during signup
 
-module.exports = mongoose.model("Teacher", teacherSchema);
+// Check if the model already exists before compiling
+module.exports = mongoose.models.Teacher || mongoose.model("Teacher", teacherSchema);

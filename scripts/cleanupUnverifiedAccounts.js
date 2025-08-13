@@ -6,17 +6,21 @@ const cron = require("node-cron");
 
 dotenv.config();
 
-// Connect to MongoDB
+// Connect to MongoDB (only if not already connected)
 const connectDB = async () => {
   try {
-    await mongoose.connect(process.env.MONGO_URL, {
-      useNewUrlParser: true,
-      useUnifiedTopology: true,
-    });
-    console.log("✅ MongoDB connected for cleanup job");
+    if (mongoose.connection.readyState === 0) {
+      await mongoose.connect(process.env.MONGO_URL, {
+        useNewUrlParser: true,
+        useUnifiedTopology: true,
+      });
+      console.log("✅ MongoDB connected for cleanup job");
+    } else {
+      console.log("✅ Using existing MongoDB connection");
+    }
   } catch (error) {
     console.error("❌ MongoDB connection failed:", error);
-    process.exit(1);
+    throw error;
   }
 };
 
@@ -25,20 +29,52 @@ const cleanupUnverifiedAccounts = async () => {
   try {
     console.log(`🧹 Starting cleanup of unverified accounts at ${new Date().toISOString()}`);
     
-    // Calculate 24 hours ago
-    const twentyFourHoursAgo = new Date(Date.now() - 24 * 60 * 60 * 1000);
+    // Calculate 12 hours ago
+    const twelveHoursAgo = new Date(Date.now() - 12 * 60 * 60 * 1000);
     
-    // Delete unverified teachers created more than 24 hours ago
-    const deletedTeachers = await Teacher.deleteMany({
-      isVerified: false,
-      createdAt: { $lt: twentyFourHoursAgo }
-    });
+    // Get current time to check if it's after 5:00 AM
+    const now = new Date();
+    const currentHour = now.getHours();
+    const isAfter5AM = currentHour >= 5;
     
-    // Delete unverified students created more than 24 hours ago
-    const deletedStudents = await Student.deleteMany({
-      isVerified: false,
-      createdAt: { $lt: twentyFourHoursAgo }
-    });
+    console.log(`⏰ Current time: ${now.toLocaleString()}, Hour: ${currentHour}, After 5 AM: ${isAfter5AM}`);
+    
+    // Build query conditions
+    let queryConditions = {};
+    
+    // If it's after 5:00 AM, also delete accounts created before 5:00 AM today
+    if (isAfter5AM) {
+      const today5AM = new Date(now);
+      today5AM.setHours(5, 0, 0, 0);
+      
+      // Use OR condition to delete accounts that are either:
+      // 1. More than 12 hours old OR
+      // 2. Created before 5:00 AM today
+      queryConditions = {
+        isVerified: false,
+        $or: [
+          { createdAt: { $lt: twelveHoursAgo } }, // 12 hours old
+          { createdAt: { $lt: today5AM } } // Before 5:00 AM today
+        ]
+      };
+      
+      console.log(`🌅 After 5 AM - will delete unverified accounts:`);
+      console.log(`   - Older than 12 hours (before ${twelveHoursAgo.toLocaleString()})`);
+      console.log(`   - OR created before 5:00 AM today (${today5AM.toLocaleString()})`);
+    } else {
+      // Before 5 AM, only delete accounts older than 12 hours
+      queryConditions = {
+        isVerified: false,
+        createdAt: { $lt: twelveHoursAgo }
+      };
+      console.log(`🌙 Before 5 AM - will only delete unverified accounts older than 12 hours (before ${twelveHoursAgo.toLocaleString()})`);
+    }
+    
+    // Delete unverified teachers
+    const deletedTeachers = await Teacher.deleteMany(queryConditions);
+    
+    // Delete unverified students
+    const deletedStudents = await Student.deleteMany(queryConditions);
     
     console.log(`✅ Cleanup completed:`);
     console.log(`   - Deleted ${deletedTeachers.deletedCount} unverified teachers`);
@@ -47,7 +83,8 @@ const cleanupUnverifiedAccounts = async () => {
     return {
       teachersDeleted: deletedTeachers.deletedCount,
       studentsDeleted: deletedStudents.deletedCount,
-      timestamp: new Date().toISOString()
+      timestamp: new Date().toISOString(),
+      isAfter5AM: isAfter5AM
     };
   } catch (error) {
     console.error("❌ Error during cleanup:", error);
@@ -70,17 +107,40 @@ const startScheduledCleanup = async () => {
   // Schedule for 5:00 AM every day
   cron.schedule('0 5 * * *', async () => {
     console.log('⏰ Running scheduled cleanup at 5:00 AM');
-    await cleanupUnverifiedAccounts();
+    try {
+      await cleanupUnverifiedAccounts();
+    } catch (error) {
+      console.error('❌ 5 AM cleanup failed:', error);
+    }
   }, {
     scheduled: true,
-    timezone: "Asia/Karachi" // Adjust timezone as needed
+    timezone: "Asia/Karachi" // Pakistan timezone
   });
   
-  console.log('📅 Cleanup job scheduled for 5:00 AM daily');
+  // Also schedule for every hour to check for 12-hour old accounts
+  cron.schedule('0 * * * *', async () => {
+    console.log('⏰ Running hourly cleanup check');
+    try {
+      await cleanupUnverifiedAccounts();
+    } catch (error) {
+      console.error('❌ Hourly cleanup failed:', error);
+    }
+  }, {
+    scheduled: true,
+    timezone: "Asia/Karachi"
+  });
+  
+  console.log('📅 Cleanup jobs scheduled:');
+  console.log('   - Daily at 5:00 AM (Pakistan Time)');
+  console.log('   - Every hour at :00 (to check for 12-hour old accounts)');
   
   // Also run cleanup on startup if there are old unverified accounts
   console.log('🚀 Running initial cleanup check...');
-  await cleanupUnverifiedAccounts();
+  try {
+    await cleanupUnverifiedAccounts();
+  } catch (error) {
+    console.error('❌ Initial cleanup failed:', error);
+  }
 };
 
 // Export for use in other files

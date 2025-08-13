@@ -37,7 +37,8 @@ router.post("/login", async (req, res) => {
         teacherId: teacher.teacherId,
         email: teacher.email,
         phoneNumber: teacher.phoneNumber,
-        img: teacher.img
+        img: teacher.img,
+        isVerified: teacher.isVerified
       }
     });
   } catch (error) {
