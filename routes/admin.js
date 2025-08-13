@@ -859,158 +859,129 @@ router.get('/search-teachers', authenticateAdmin, async (req, res) => {
   }
 });
 
-// Assign subjects to teacher
-router.post('/assign-subjects', authenticateAdmin, async (req, res) => {
-  try {
-    const { teacherId, subjects } = req.body;
-
-    if (!subjects || !Array.isArray(subjects) || subjects.length === 0) {
-      return res.status(400).json({ message: 'Please provide subjects to assign.' });
-    }
-
-    const teacher = await Teacher.findById(teacherId);
-    if (!teacher) {
-      return res.status(404).json({ message: 'Teacher not found.' });
-    }
-
-    if (!teacher.isVerified) {
-      return res.status(400).json({ message: 'Teacher must be verified to assign subjects.' });
-    }
-
-    if (!teacher.classes || teacher.classes.length === 0) {
-      return res.status(400).json({ message: 'Teacher must have assigned classes before assigning subjects.' });
-    }
-
-    // Remove duplicates and add new subjects
-    const uniqueSubjects = [...new Set([...teacher.subjects, ...subjects])];
-    teacher.subjects = uniqueSubjects;
-    await teacher.save();
-    
-    // Populate the teacher data for response
-    await teacher.populate('classes', 'name');
-
-    res.status(200).json({ 
-      message: 'Subjects assigned successfully.', 
-      teacher 
-    });
-  } catch (error) {
-    console.error('Error assigning subjects:', error);
-    res.status(500).json({ message: 'Server error' });
-  }
-});
-
-// Remove subjects from teacher
-router.post('/remove-subjects', authenticateAdmin, async (req, res) => {
-  try {
-    const { teacherId, subjects } = req.body;
-
-    if (!subjects || !Array.isArray(subjects) || subjects.length === 0) {
-      return res.status(400).json({ message: 'Please provide subjects to remove.' });
-    }
-
-    const teacher = await Teacher.findById(teacherId);
-    if (!teacher) {
-      return res.status(404).json({ message: 'Teacher not found.' });
-    }
-
-    // Remove specified subjects
-    teacher.subjects = teacher.subjects.filter(subject => !subjects.includes(subject));
-    await teacher.save();
-    
-    // Populate the teacher data for response
-    await teacher.populate('classes', 'name');
-
-    res.status(200).json({ 
-      message: 'Subjects removed successfully.', 
-      teacher 
-    });
-  } catch (error) {
-    console.error('Error removing subjects:', error);
-    res.status(500).json({ message: 'Server error' });
-  }
-});
-
-// Search verified teachers with optional filters
-router.get('/search-teachers', authenticateAdmin, async (req, res) => {
-  try {
-    const { q, hasClasses } = req.query;
-    
-    let searchQuery = { isVerified: true };
-    
-    // Add text search if query provided
-    if (q && q.trim()) {
-      const searchTerm = q.trim();
-      searchQuery.$or = [
-        { fullname: { $regex: searchTerm, $options: 'i' } },
-        { teacherId: { $regex: searchTerm, $options: 'i' } },
-        { email: { $regex: searchTerm, $options: 'i' } }
-      ];
-    }
-    
-    // Filter by teachers with classes if requested
-    if (hasClasses === 'true') {
-      searchQuery.classes = { $exists: true, $ne: [] };
-    }
-    
-    const teachers = await Teacher.find(searchQuery)
-      .populate('classes', 'name')
-      .select('-password')
-      .sort({ fullname: 1 });
-    
-    res.status(200).json({ teachers });
-  } catch (error) {
-    console.error('Error searching teachers:', error);
-    res.status(500).json({ message: 'Server error' });
-  }
-});
 
 // Assign subjects to teacher with timetable
 router.post('/assign-subjects-with-timetable', authenticateAdmin, async (req, res) => {
   try {
+    console.log('=== ASSIGN SUBJECTS WITH TIMETABLE DEBUG ===');
+    console.log('Request body:', JSON.stringify(req.body, null, 2));
+    
     const { teacherId, subjectAssignments } = req.body;
     const Timetable = require('../models/timetable');
 
+    console.log('1. Validating teacherId:', teacherId);
+    console.log('2. Validating subjectAssignments:', subjectAssignments);
+
     if (!subjectAssignments || !Array.isArray(subjectAssignments) || subjectAssignments.length === 0) {
-      return res.status(400).json({ message: 'Please provide subject assignments with timetable information.' });
+      console.log('❌ VALIDATION FAILED: subjectAssignments invalid');
+      return res.status(400).json({ 
+        message: 'Please provide subject assignments with timetable information.',
+        debug: {
+          receivedSubjectAssignments: subjectAssignments,
+          isArray: Array.isArray(subjectAssignments),
+          length: subjectAssignments?.length
+        }
+      });
     }
 
+    console.log('3. Finding teacher with ID:', teacherId);
     const teacher = await Teacher.findById(teacherId);
     if (!teacher) {
+      console.log('❌ VALIDATION FAILED: Teacher not found');
       return res.status(404).json({ message: 'Teacher not found.' });
     }
+    
+    console.log('4. Teacher found:', teacher.fullname, 'Verified:', teacher.isVerified);
+    console.log('5. Teacher classes:', teacher.classes);
 
     if (!teacher.isVerified) {
+      console.log('❌ VALIDATION FAILED: Teacher not verified');
       return res.status(400).json({ message: 'Teacher must be verified to assign subjects.' });
     }
 
     if (!teacher.classes || teacher.classes.length === 0) {
+      console.log('❌ VALIDATION FAILED: Teacher has no classes');
       return res.status(400).json({ message: 'Teacher must have assigned classes before assigning subjects.' });
     }
 
+    console.log('6. Processing subject assignments...');
     // Extract unique subjects from assignments
     const subjects = [...new Set(subjectAssignments.map(assignment => assignment.subject))];
+    console.log('7. Extracted subjects:', subjects);
     
     // Remove duplicates and add new subjects to teacher
     const uniqueSubjects = [...new Set([...teacher.subjects, ...subjects])];
     teacher.subjects = uniqueSubjects;
     await teacher.save();
+    console.log('8. Updated teacher subjects:', uniqueSubjects);
 
     // Create timetable entries
     const timetableEntries = [];
-    for (const assignment of subjectAssignments) {
+    console.log('9. Creating timetable entries for', subjectAssignments.length, 'assignments');
+    
+    for (let i = 0; i < subjectAssignments.length; i++) {
+      const assignment = subjectAssignments[i];
       const { subject, classId, days, timeSlot } = assignment;
       
-      // Validate that the class is assigned to this teacher
-      if (!teacher.classes.includes(classId)) {
+      console.log(`10.${i+1}. Processing assignment:`, {
+        subject, classId, days, timeSlot
+      });
+      
+      // Validate assignment structure
+      if (!subject || !classId || !days || !timeSlot) {
+        console.log('❌ VALIDATION FAILED: Missing required fields in assignment');
         return res.status(400).json({ 
-          message: `Class ${classId} is not assigned to teacher ${teacher.fullname}` 
+          message: 'Each assignment must have subject, classId, days, and timeSlot',
+          invalidAssignment: assignment,
+          assignmentIndex: i
+        });
+      }
+      
+      // Validate that the class is assigned to this teacher
+      const teacherClassIds = teacher.classes.map(c => c.toString());
+      console.log('11. Teacher class IDs:', teacherClassIds);
+      console.log('12. Requested class ID:', classId);
+      
+      if (!teacherClassIds.includes(classId.toString())) {
+        console.log('❌ VALIDATION FAILED: Class not assigned to teacher');
+        return res.status(400).json({ 
+          message: `Class ${classId} is not assigned to teacher ${teacher.fullname}`,
+          debug: {
+            teacherClassIds,
+            requestedClassId: classId
+          }
+        });
+      }
+      
+      // Validate time slot format
+      const timeSlotRegex = /^\d{2}:\d{2}-\d{2}:\d{2}$/;
+      if (!timeSlotRegex.test(timeSlot)) {
+        console.log('❌ VALIDATION FAILED: Invalid time slot format');
+        return res.status(400).json({ 
+          message: `Invalid time slot format: ${timeSlot}. Must be HH:MM-HH:MM`,
+          assignment: assignment
         });
       }
 
       // Handle multiple days
       const daysToProcess = Array.isArray(days) ? days : [days];
+      console.log('13. Days to process:', daysToProcess);
+      
+      // Validate day names
+      const validDays = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
+      for (const day of daysToProcess) {
+        if (!validDays.includes(day)) {
+          console.log('❌ VALIDATION FAILED: Invalid day name');
+          return res.status(400).json({ 
+            message: `Invalid day name: ${day}. Must be one of: ${validDays.join(', ')}`,
+            assignment: assignment
+          });
+        }
+      }
       
       for (const day of daysToProcess) {
+        console.log(`14. Checking conflicts for ${day} ${timeSlot}...`);
+        
         // Check for time slot conflicts
         const existingSlot = await Timetable.findOne({
           class: classId,
@@ -1020,11 +991,19 @@ router.post('/assign-subjects-with-timetable', authenticateAdmin, async (req, re
         });
 
         if (existingSlot) {
+          console.log('❌ VALIDATION FAILED: Time slot conflict');
           return res.status(400).json({ 
-            message: `Time slot ${timeSlot} on ${day} is already occupied for this class` 
+            message: `Time slot ${timeSlot} on ${day} is already occupied for this class`,
+            conflictingEntry: {
+              subject: existingSlot.subject,
+              day: existingSlot.day,
+              timeSlot: existingSlot.timeSlot
+            }
           });
         }
 
+        console.log(`15. Creating timetable entry: ${subject} - ${day} ${timeSlot}`);
+        
         // Create timetable entry
         const timetableEntry = new Timetable({
           class: classId,
@@ -1036,6 +1015,7 @@ router.post('/assign-subjects-with-timetable', authenticateAdmin, async (req, re
 
         await timetableEntry.save();
         timetableEntries.push(timetableEntry);
+        console.log(`16. Timetable entry created successfully`);
       }
     }
     
