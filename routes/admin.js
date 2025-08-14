@@ -81,7 +81,36 @@ router.post("/login", async (req, res) => {
   try {
     const { email, password } = req.body;
 
-    // Check for default admin credentials (temporary)
+    // First, try to find admin in database
+    const admin = await Admin.findOne({ email });
+    
+    if (admin) {
+      // Admin exists in database, verify password
+      const isPasswordCorrect = await bcrypt.compare(password, admin.password);
+      if (!isPasswordCorrect) {
+        return res.status(400).json({ message: "Invalid credentials" });
+      }
+
+      const token = jwt.sign(
+        { id: admin._id, role: admin.role, userType: "admin" },
+        process.env.JWT_SECRET,
+        { expiresIn: "24h" }
+      );
+
+      return res.status(200).json({ 
+        message: "Login successful",
+        token,
+        admin: {
+          id: admin._id,
+          fullname: admin.fullname,
+          username: admin.username,
+          email: admin.email,
+          role: admin.role
+        }
+      });
+    }
+
+    // If no admin found in database, check for default admin credentials
     if (email === "admin@gmail.com" && password === "123457") {
       const token = jwt.sign(
         { id: "default-admin", role: "admin", userType: "admin" },
@@ -102,34 +131,8 @@ router.post("/login", async (req, res) => {
       });
     }
 
-    // Try to find admin in database
-    const admin = await Admin.findOne({ email });
-    if (!admin) {
-      return res.status(400).json({ message: "Invalid credentials" });
-    }
-
-    const isPasswordCorrect = await bcrypt.compare(password, admin.password);
-    if (!isPasswordCorrect) {
-      return res.status(400).json({ message: "Invalid credentials" });
-    }
-
-    const token = jwt.sign(
-      { id: admin._id, role: admin.role, userType: "admin" },
-      process.env.JWT_SECRET,
-      { expiresIn: "24h" }
-    );
-
-    res.status(200).json({ 
-      message: "Login successful",
-      token,
-      admin: {
-        id: admin._id,
-        fullname: admin.fullname,
-        username: admin.username,
-        email: admin.email,
-        role: admin.role
-      }
-    });
+    // If neither database admin nor default admin credentials match
+    return res.status(400).json({ message: "Invalid credentials" });
   } catch (error) {
     res.status(500).json({ message: error.message });
   }
