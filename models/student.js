@@ -163,14 +163,7 @@ const studentSchema = new mongoose.Schema({
     type: String,
     default: "student"
   },
-  pushTokens: [{
-    token: String,
-    deviceId: String,
-    addedAt: {
-      type: Date,
-      default: Date.now
-    }
-  }]
+
 }, {
   timestamps: true
 });

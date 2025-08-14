@@ -25,7 +25,7 @@ const postRoutes = require("./routes/posts.js");
 const assignmentRoutes = require("./routes/assignments.js");
 const attendanceRoutes = require("./routes/attendance.js");
 const passwordResetRoutes = require("./routes/passwordReset.js");
-const notificationRoutes = require("./routes/notifications.js");
+
 const socketService = require("./services/socketService.js");
 const { CloudinaryStorage } = require("multer-storage-cloudinary");
 
@@ -111,7 +111,7 @@ app.use("/api/posts", postRoutes);
 app.use("/api/assignments", assignmentRoutes);
 app.use("/api/attendance", attendanceRoutes);
 app.use("/api/password-reset", passwordResetRoutes);
-app.use("/api/notifications", notificationRoutes);
+
 
 // Public app configuration endpoint (no authentication required)
 app.get("/api/app-config", async (req, res) => {

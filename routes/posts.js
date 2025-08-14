@@ -7,7 +7,7 @@ const Class = require('../models/class');
 const cloudinary = require('cloudinary').v2;
 const multer = require('multer');
 const { authenticateAdmin, authenticateTeacher, authenticateStudent } = require('../middleware/auth');
-const NotificationService = require('../services/notificationService');
+
 
 // Configure Cloudinary
 cloudinary.config({
@@ -114,31 +114,7 @@ router.post('/create', authenticateAdmin, upload.single('image'), async (req, re
       await post.populate('targetClass', 'classNumber section');
     }
 
-    // Send push notifications based on target audience
-    try {
-      const notificationTitle = 'Notification from Admin';
-      const notificationBody = content ? 
-        (content.substring(0, 100) + (content.length > 100 ? '...' : '')) : 
-        'New post from admin';
-      const notificationData = {
-        postId: post._id.toString(),
-        type: 'school_post'
-      };
 
-      if (targetAudience === 'teachers') {
-        await NotificationService.notifyAllTeachers(notificationTitle, notificationBody, notificationData);
-      } else if (targetAudience === 'students') {
-        await NotificationService.notifyAllStudents(notificationTitle, notificationBody, notificationData);
-      } else if (targetAudience === 'both') {
-        await NotificationService.notifyAllTeachers(notificationTitle, notificationBody, notificationData);
-        await NotificationService.notifyAllStudents(notificationTitle, notificationBody, notificationData);
-      } else if (targetAudience === 'class' && targetClass) {
-        await NotificationService.notifyClassStudents(targetClass, notificationTitle, notificationBody, notificationData);
-      }
-    } catch (notificationError) {
-      console.error('Error sending push notifications:', notificationError);
-      // Don't fail the post creation if notifications fail
-    }
 
     res.status(201).json({
       message: 'Post created successfully',

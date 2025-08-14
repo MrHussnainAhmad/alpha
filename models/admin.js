@@ -28,14 +28,7 @@ const adminSchema = new mongoose.Schema({
     default: "admin",
     enum: ["admin", "principal"]
   },
-  pushTokens: [{
-    token: String,
-    deviceId: String,
-    addedAt: {
-      type: Date,
-      default: Date.now
-    }
-  }]
+
 }, {
   timestamps: true
 });
