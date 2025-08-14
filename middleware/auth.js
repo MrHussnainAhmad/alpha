@@ -16,6 +16,14 @@ const authenticateToken = (req, res, next) => {
     if (err) {
       return res.status(403).json({ message: "Invalid or expired token" });
     }
+    
+    // Handle the default admin case
+    if (user.id === 'default-admin') {
+      // The default admin is not a real user in the DB, so its ID is not a valid ObjectId.
+      // Set it to null to avoid cast errors when it's used in queries or saved as a ref.
+      user.id = null;
+    }
+    
     req.user = user;
     next();
   });
@@ -30,10 +38,18 @@ const authenticateAdmin = async (req, res, next) => {
       }
 
       // Handle the default admin case
-      if (req.user.id === 'default-admin') {
+      if (req.user.id === 'default-admin' || req.user.id === null) {
         // The default admin is not a real user in the DB, so its ID is not a valid ObjectId.
         // Set it to null to avoid cast errors when it's used in queries or saved as a ref.
         req.user.id = null;
+        // Set a default admin object for consistency
+        req.user = {
+          id: null,
+          userType: 'admin',
+          role: 'admin',
+          fullname: 'System Administrator',
+          username: 'admin'
+        };
         return next();
       }
 

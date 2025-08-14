@@ -10,8 +10,9 @@ const Class = require('../models/class');
 router.post('/mark-student', authenticateAdmin, async (req, res) => {
   try {
     const { studentId, classId, status, date } = req.body;
+    console.log('Received status for student attendance:', status);
     
-    if (!studentId || !classId || !status || !['A', 'P'].includes(status)) {
+    if (!studentId || !classId || !status || !['A', 'P', 'H'].includes(status)) {
       return res.status(400).json({ message: 'Missing required fields' });
     }
 
@@ -76,6 +77,10 @@ router.post('/mark-student', authenticateAdmin, async (req, res) => {
   } catch (error) {
     console.error('Error marking student attendance:', error);
     console.error('Error details:', error.message);
+    console.error('Error name:', error.name);
+    if (error.errors) {
+      console.error('Mongoose validation errors:', error.errors);
+    }
     console.error('Error stack:', error.stack);
     res.status(500).json({ message: 'Server error', details: error.message });
   }
@@ -86,10 +91,11 @@ router.post('/mark-teacher', authenticateAdmin, async (req, res) => {
   try {
     console.log('Teacher attendance request body:', req.body);
     const { teacherId, classId, status, date } = req.body;
+    console.log('Received status for teacher attendance:', status);
     
     console.log('Extracted values:', { teacherId, classId, status, date });
     
-    if (!teacherId || !status || !['A', 'P'].includes(status)) {
+    if (!teacherId || !status || !['A', 'P', 'H'].includes(status)) {
       console.log('Validation failed:', { teacherId: !!teacherId, status: !!status, validStatus: ['A', 'P'].includes(status) });
       return res.status(400).json({ message: 'Missing required fields' });
     }
@@ -153,6 +159,10 @@ router.post('/mark-teacher', authenticateAdmin, async (req, res) => {
   } catch (error) {
     console.error('Error marking teacher attendance:', error);
     console.error('Error details:', error.message);
+    console.error('Error name:', error.name);
+    if (error.errors) {
+      console.error('Mongoose validation errors:', error.errors);
+    }
     console.error('Error stack:', error.stack);
     res.status(500).json({ message: 'Server error', details: error.message });
   }
@@ -164,7 +174,7 @@ router.put('/update/:id', authenticateAdmin, async (req, res) => {
     const { status } = req.body;
     const { id } = req.params;
 
-    if (!status || !['A', 'P'].includes(status)) {
+    if (!status || !['A', 'P', 'H'].includes(status)) {
       return res.status(400).json({ message: 'Invalid status' });
     }
 
@@ -318,7 +328,7 @@ router.get('/record/:type/:id/:month', authenticateAdmin, async (req, res) => {
       .sort({ date: 1 });
 
     // Calculate statistics
-    const totalDays = attendance.length;
+    const totalDays = attendance.filter(a => a.status === 'P' || a.status === 'A').length;
     const presentDays = attendance.filter(a => a.status === 'P').length;
     const absentDays = attendance.filter(a => a.status === 'A').length;
     const attendancePercentage = totalDays > 0 ? ((presentDays / totalDays) * 100).toFixed(2) : 0;
@@ -357,7 +367,7 @@ router.get('/my-record/:month', authenticateTeacher, async (req, res) => {
     .sort({ date: 1 });
 
     // Calculate statistics
-    const totalDays = attendance.length;
+    const totalDays = attendance.filter(a => a.status === 'P' || a.status === 'A').length;
     const presentDays = attendance.filter(a => a.status === 'P').length;
     const absentDays = attendance.filter(a => a.status === 'A').length;
     const attendancePercentage = totalDays > 0 ? ((presentDays / totalDays) * 100).toFixed(2) : 0;
@@ -396,7 +406,7 @@ router.get('/student/my-record/:month', authenticateStudent, async (req, res) =>
     .sort({ date: 1 });
 
     // Calculate statistics
-    const totalDays = attendance.length;
+    const totalDays = attendance.filter(a => a.status === 'P' || a.status === 'A').length;
     const presentDays = attendance.filter(a => a.status === 'P').length;
     const absentDays = attendance.filter(a => a.status === 'A').length;
     const attendancePercentage = totalDays > 0 ? ((presentDays / totalDays) * 100).toFixed(2) : 0;

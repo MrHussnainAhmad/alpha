@@ -23,7 +23,7 @@ const attendanceSchema = new mongoose.Schema({
   },
   status: {
     type: String,
-    enum: ['A', 'P'], // A = Absent, P = Present
+    enum: ['A', 'P', 'H'], // A = Absent, P = Present, H = Holiday/Event
     required: true
   },
   markedBy: {

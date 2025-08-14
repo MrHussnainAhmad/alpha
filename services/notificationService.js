@@ -1,6 +1,7 @@
 const { Expo } = require('expo-server-sdk');
 const Teacher = require('../models/teacher');
 const Student = require('../models/student');
+const Admin = require('../models/admin');
 
 // Create a new Expo SDK client
 const expo = new Expo();
@@ -9,12 +10,19 @@ class NotificationService {
   // Save or update push token for a user
   static async savePushToken(userId, userType, token, deviceId) {
     try {
+      // Handle default admin case (userId is null)
+      if (!userId) {
+        return { success: true, message: 'Push token saved successfully (default admin)' };
+      }
+      
       let user;
       
       if (userType === 'teacher') {
         user = await Teacher.findById(userId);
       } else if (userType === 'student') {
         user = await Student.findById(userId);
+      } else if (userType === 'admin') {
+        user = await Admin.findById(userId);
       }
       
       if (!user) {
@@ -201,12 +209,19 @@ class NotificationService {
   // Remove push token when user logs out
   static async removePushToken(userId, userType, deviceId) {
     try {
+      // Handle default admin case (userId is null)
+      if (!userId) {
+        return { success: true, message: 'Push token removed successfully (default admin)' };
+      }
+      
       let user;
       
       if (userType === 'teacher') {
         user = await Teacher.findById(userId);
       } else if (userType === 'student') {
         user = await Student.findById(userId);
+      } else if (userType === 'admin') {
+        user = await Admin.findById(userId);
       }
       
       if (!user) {

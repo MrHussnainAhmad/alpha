@@ -137,6 +137,34 @@ router.post("/login", async (req, res) => {
   }
 });
 
+// Get admin profile (for refreshing admin data)
+router.get("/profile", authenticateAdmin, async (req, res) => {
+  try {
+    // Handle default admin case
+    if (req.user.id === null) {
+      return res.status(200).json({
+        admin: {
+          id: "default-admin",
+          fullname: "System Administrator",
+          username: "admin",
+          email: "admin@gmail.com",
+          role: "admin"
+        }
+      });
+    }
+
+    // Get admin from database
+    const admin = await Admin.findById(req.user.id).select('-password');
+    if (!admin) {
+      return res.status(404).json({ message: "Admin not found" });
+    }
+
+    res.status(200).json({ admin });
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+});
+
 // Search teacher by Teacher ID
 router.get("/search/teacher/:teacherId", async (req, res) => {
   try {
@@ -437,7 +465,7 @@ router.get("/stats", async (req, res) => {
 });
 
 // Update student (admin function)
-router.put("/update-student/:id", async (req, res) => {
+router.put("/update-student/:id", authenticateAdmin, async (req, res) => {
   try {
     const { id } = req.params;
     const updateData = { ...req.body };
@@ -452,22 +480,21 @@ router.put("/update-student/:id", async (req, res) => {
     if (updateData.class && updateData.section) {
       const classDoc = await Class.findById(updateData.class);
       if (classDoc) {
+        // Keep the class ObjectId reference for the model relationship
+        // updateData.class remains as ObjectId (don't delete it)
         updateData.className = `${classDoc.classNumber}-${classDoc.section}`; // Store class name as string
         updateData.section = updateData.section; // Store section as string
       } else {
         // Handle case where class is not found, maybe return an error
         return res.status(400).json({ message: "Invalid class ID" });
       }
-      // Remove original class and section from updateData as they are now in className and section
-      delete updateData.class;
-      // updateData.section is already handled, no need to delete it again
     } else if (updateData.class === '' && updateData.section === '') {
       updateData.className = null;
       updateData.section = null;
-      delete updateData.class; // Remove original class from updateData
+      updateData.class = null; // Set class to null instead of deleting
     } else if (updateData.class === '') { // Only class is being unset
       updateData.className = null;
-      delete updateData.class;
+      updateData.class = null; // Set class to null instead of deleting
     } else if (updateData.section === '') { // Only section is being unset
       updateData.section = null;
     }
@@ -501,6 +528,17 @@ router.put("/update-student/:id", async (req, res) => {
     res.status(200).json({ 
       message: "Student updated successfully",
       student 
+    });
+    
+    console.log('Student update response sent:', {
+      message: "Student updated successfully",
+      student: {
+        _id: student._id,
+        fullname: student.fullname,
+        class: student.class,
+        className: student.className,
+        section: student.section
+      }
     });
   } catch (error) {
     res.status(500).json({ message: error.message });
