@@ -1,13 +1,26 @@
 const mongoose = require("mongoose");
 const Class = require("./class");
 
-// Function to generate Student ID: S-name-class
-function generateStudentId(name, className) {
+// Function to generate Student ID: S-name-class with duplicate handling
+async function generateStudentId(name, className) {
   const cleanName = name.replace(/\s+/g, '').toLowerCase();
-  return `S-${cleanName}-${className}`;
+  let baseId = `S-${cleanName}-${className}`;
+  
+  // Check if this base ID already exists
+  const Student = mongoose.model('Student');
+  let counter = 1;
+  let finalId = baseId;
+  
+  // Keep checking until we find a unique ID
+  while (await Student.findOne({ studentId: finalId })) {
+    counter++;
+    finalId = `S-${cleanName}${counter}-${className}`;
+  }
+  
+  return finalId;
 }
 
-// Function to generate Special Student ID: S-name-class-rollnumber
+// Function to generate Special Student ID: S-name-class-rollNumber
 function generateSpecialStudentId(name, className, rollNumber) {
   const cleanName = name.replace(/\s+/g, '').toLowerCase();
   return `S-${cleanName}-${className}-${rollNumber}`;
@@ -164,56 +177,75 @@ const studentSchema = new mongoose.Schema({
 
 // Pre-save middleware to generate student ID when class is assigned
 studentSchema.pre('save', async function(next) {
-  console.log('Entering pre-save middleware for studentId generation');
-  console.log(`isModified('class'): ${this.isModified('class')}`);
-  console.log(`this.class: ${this.class}`);
-  console.log(`Current studentId: ${this.studentId}`);
-  
-  // Check if class is assigned and studentId needs to be updated
-  if (this.class && (!this.studentId || this.studentId.includes('Unassigned'))) {
-    const studentClass = await Class.findById(this.class);
-    if (studentClass) {
-      // Generate new studentId based on class
-      const newStudentId = generateStudentId(this.fullname, studentClass.classNumber);
-      console.log(`newStudentId: ${newStudentId}`);
-      
-      // Update studentId if it doesn't exist or if it contains 'Unassigned'
-      if (!this.studentId || this.studentId.includes('Unassigned')) {
-        this.studentId = newStudentId;
-        console.log(`this.studentId after update: ${this.studentId}`);
+  try {
+    console.log('Entering pre-save middleware for studentId generation');
+    console.log(`isModified('class'): ${this.isModified('class')}`);
+    console.log(`this.class: ${this.class}`);
+    console.log(`Current studentId: ${this.studentId}`);
+    
+    // Check if class is assigned and studentId needs to be updated
+    if (this.class && (!this.studentId || this.studentId.includes('Unassigned'))) {
+      const studentClass = await Class.findById(this.class);
+      if (studentClass) {
+        // Generate new studentId based on class with duplicate handling
+        const newStudentId = await generateStudentId(this.fullname, studentClass.classNumber);
+        console.log(`newStudentId: ${newStudentId}`);
+        
+        // Update studentId if it doesn't exist or if it contains 'Unassigned'
+        if (!this.studentId || this.studentId.includes('Unassigned')) {
+          this.studentId = newStudentId;
+          console.log(`this.studentId after update: ${this.studentId}`);
+        }
+        
+        // Also update className field
+        this.className = `${studentClass.classNumber}-${studentClass.section}`;
+        console.log(`className updated: ${this.className}`);
       }
-      
-      // Also update className field
-      this.className = `${studentClass.classNumber}-${studentClass.section}`;
-      console.log(`className updated: ${this.className}`);
     }
+    next();
+  } catch (error) {
+    console.error('Error in studentId generation middleware:', error);
+    next(error);
   }
-  next();
 });
 
 // Pre-save middleware to generate special student ID when roll number is provided
 studentSchema.pre('save', async function(next) {
-  // Only generate special student ID if class is assigned and roll number is provided
-  if (this.isModified('rollNumber') && this.rollNumber && this.class) {
-    const studentClass = await Class.findById(this.class);
-    if (studentClass) {
-      this.specialStudentId = generateSpecialStudentId(this.fullname, studentClass.classNumber, this.rollNumber);
+  try {
+    // Only generate special student ID if class is assigned and roll number is provided
+    if (this.isModified('rollNumber') && this.rollNumber && this.class) {
+      const studentClass = await Class.findById(this.class);
+      if (studentClass) {
+        this.specialStudentId = generateSpecialStudentId(this.fullname, studentClass.classNumber, this.rollNumber);
+      }
     }
+    next();
+  } catch (error) {
+    console.error('Error in specialStudentId generation middleware:', error);
+    next(error);
   }
-  next();
 });
 
 // Method to assign special ID for fee voucher submission
 studentSchema.methods.assignSpecialIdForFeeVoucher = async function(rollNumber) {
-  if (!this.specialStudentId) {
-    this.rollNumber = rollNumber;
-    const studentClass = await Class.findById(this.class);
-    if (studentClass) {
-      this.specialStudentId = generateSpecialStudentId(this.fullname, studentClass.classNumber, this.rollNumber);
+  try {
+    if (!this.specialStudentId) {
+      this.rollNumber = rollNumber;
+      const studentClass = await Class.findById(this.class);
+      if (studentClass) {
+        this.specialStudentId = generateSpecialStudentId(this.fullname, studentClass.classNumber, this.rollNumber);
+      }
     }
+    return this.specialStudentId;
+  } catch (error) {
+    console.error('Error assigning special ID for fee voucher:', error);
+    throw error;
   }
-  return this.specialStudentId;
 };
 
 // Check if the model already exists before compiling
 module.exports = mongoose.models.Student || mongoose.model("Student", studentSchema);
+
+// Export utility functions for use in other parts of the application
+module.exports.generateStudentId = generateStudentId;
+module.exports.generateSpecialStudentId = generateSpecialStudentId;

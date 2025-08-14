@@ -12,6 +12,9 @@ const cloudinary = require('cloudinary').v2;
 const multer = require('multer');
 const { authenticateAdmin } = require('../middleware/auth');
 
+// Import the generateStudentId function from Student model
+const { generateStudentId } = require('../models/student');
+
 // Configure Cloudinary
 cloudinary.config({
   cloud_name: process.env.CLOUDINARY_NAME,
@@ -29,11 +32,6 @@ const router = express.Router();
 function generateTeacherId(name, joiningYear) {
   const cleanName = name.replace(/\s+/g, '').toLowerCase();
   return `T-${cleanName}-${joiningYear}`;
-}
-
-function generateStudentId(name, studentClass) {
-  const cleanName = name.replace(/\s+/g, '').toLowerCase();
-  return `S-${cleanName}-${studentClass}`;
 }
 
 // Admin signup (only for initial setup or by existing admin)
@@ -1236,7 +1234,7 @@ router.put("/assign-student-id/:id", async (req, res) => {
     }
     
     // Generate student ID if not provided custom one
-    const studentId = customStudentId || generateStudentId(student.fullname, student.className); // Use className
+    const studentId = customStudentId || await generateStudentId(student.fullname, student.className); // Use className
     
     // Check if student ID already exists
     const existingStudent = await Student.findOne({ studentId, _id: { $ne: id } });
@@ -1244,11 +1242,13 @@ router.put("/assign-student-id/:id", async (req, res) => {
       return res.status(400).json({ message: "Student ID already exists" });
     }
     
+    // Update student with new ID
     student.studentId = studentId;
     await student.save();
     
     res.status(200).json({ 
       message: "Student ID assigned successfully",
+      studentId: student.studentId,
       student: {
         id: student._id,
         fullname: student.fullname,

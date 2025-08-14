@@ -4,11 +4,8 @@ const mongoose = require('mongoose');
 const Student = require('../models/student');
 const Class = require('../models/class');
 
-// Function to generate Student ID: S-name-class
-function generateStudentId(name, studentClass) {
-  const cleanName = name.replace(/\s+/g, '').toLowerCase();
-  return `S-${cleanName}-${studentClass}`;
-}
+// Import the generateStudentId function from Student model
+const { generateStudentId } = require('../models/student');
 
 // Function to generate Special Student ID: S-name-class-rollnumber
 function generateSpecialStudentId(name, studentClass, rollNumber) {
@@ -34,7 +31,7 @@ const updateStudentIds = async () => {
       if (student.class) {
         const studentClass = await Class.findById(student.class);
         if (studentClass) {
-          const newStudentId = generateStudentId(student.fullname, studentClass.name);
+          const newStudentId = await generateStudentId(student.fullname, studentClass.name);
           if (newStudentId !== student.studentId) {
             student.studentId = newStudentId;
             studentIdUpdated = true;
