@@ -57,7 +57,11 @@ const authenticateAdmin = async (req, res, next) => {
       if (!admin) {
         return res.status(403).json({ message: 'Admin not found' });
       }
-      req.user = admin;
+      // Keep the original user object with id and userType, but add admin data
+      req.user = {
+        ...req.user,
+        admin: admin
+      };
       next();
     } catch (error) {
       res.status(500).json({ message: error.message });
