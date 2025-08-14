@@ -44,13 +44,8 @@ router.post('/create', authenticateAdmin, upload.single('image'), async (req, re
   try {
     const { content, postType, targetAudience, targetClass } = req.body;
     
-    // Handle default admin case
-    let adminId = req.user.id;
-    if (adminId === null && req.user._id === undefined) {
-      // This is the default admin case
-      // For default admin, we'll use a special identifier
-      adminId = 'default-admin';
-    }
+    // Require a valid admin ID
+    const adminId = req.user.id;
 
     // Validate post type
     if (!['text', 'image', 'image_text'].includes(postType)) {
@@ -98,17 +93,8 @@ router.post('/create', authenticateAdmin, upload.single('image'), async (req, re
 
     await post.save();
 
-    // Handle author details for response
-    if (typeof post.author === 'string' && post.author === 'default-admin') {
-      // For default admin, set the author details manually
-      post.author = {
-        _id: 'default-admin',
-        fullname: 'System Administrator'
-      };
-    } else {
-      // For regular admins, populate from database
-      await post.populate('author', 'fullname');
-    }
+    // Populate author from database
+    await post.populate('author', 'fullname');
     
     if (targetAudience === 'class') {
       await post.populate('targetClass', 'classNumber section');
@@ -157,33 +143,20 @@ router.get('/admin/all', authenticateAdmin, async (req, res) => {
       .populate('targetClass', 'classNumber section')
       .sort({ createdAt: -1 });
 
-    // Handle author population for each post
+    // Ensure authors are populated (no default-admin fallback)
     const postsWithAuthors = await Promise.all(posts.map(async (post) => {
       const postObj = post.toObject();
-      if (typeof postObj.author === 'string' && postObj.author === 'default-admin') {
-        postObj.author = {
-          _id: 'default-admin',
-          fullname: 'System Administrator'
-        };
-      } else if (postObj.author && typeof postObj.author === 'object' && postObj.author._id) {
-        // This is already populated, keep as is
-      } else {
-        // This is an ObjectId, populate it
-        try {
-          const admin = await Admin.findById(postObj.author).select('fullname');
-          if (admin) {
-            postObj.author = {
-              _id: admin._id,
-              fullname: admin.fullname
-            };
-          }
-        } catch (error) {
-          console.error('Error populating admin:', error);
-          postObj.author = {
-            _id: postObj.author,
-            fullname: 'Unknown Admin'
-          };
+      if (postObj.author && typeof postObj.author === 'object' && postObj.author._id) {
+        return postObj;
+      }
+      try {
+        const admin = await Admin.findById(postObj.author).select('fullname');
+        if (admin) {
+          postObj.author = { _id: admin._id, fullname: admin.fullname };
         }
+      } catch (error) {
+        console.error('Error populating admin:', error);
+        postObj.author = { _id: postObj.author, fullname: 'Unknown Admin' };
       }
       return postObj;
     }));
@@ -200,12 +173,7 @@ router.delete('/admin/:postId', authenticateAdmin, async (req, res) => {
   try {
     const { postId } = req.params;
     
-    // Handle default admin case
-    let adminId = req.user.id;
-    if (adminId === null && req.user._id === undefined) {
-      // This is the default admin case
-      adminId = 'default-admin';
-    }
+    const adminId = req.user.id;
 
     const post = await Post.findById(postId);
     if (!post) {
@@ -254,33 +222,19 @@ router.get('/teacher', authenticateTeacher, async (req, res) => {
       .populate('targetClass', 'classNumber section')
       .sort({ createdAt: -1 });
 
-    // Handle author population for each post
     const postsWithAuthors = await Promise.all(posts.map(async (post) => {
       const postObj = post.toObject();
-      if (typeof postObj.author === 'string' && postObj.author === 'default-admin') {
-        postObj.author = {
-          _id: 'default-admin',
-          fullname: 'System Administrator'
-        };
-      } else if (postObj.author && typeof postObj.author === 'object' && postObj.author._id) {
-        // This is already populated, keep as is
-      } else {
-        // This is an ObjectId, populate it
-        try {
-          const admin = await Admin.findById(postObj.author).select('fullname');
-          if (admin) {
-            postObj.author = {
-              _id: admin._id,
-              fullname: admin.fullname
-            };
-          }
-        } catch (error) {
-          console.error('Error populating admin:', error);
-          postObj.author = {
-            _id: postObj.author,
-            fullname: 'Unknown Admin'
-          };
+      if (postObj.author && typeof postObj.author === 'object' && postObj.author._id) {
+        return postObj;
+      }
+      try {
+        const admin = await Admin.findById(postObj.author).select('fullname');
+        if (admin) {
+          postObj.author = { _id: admin._id, fullname: admin.fullname };
         }
+      } catch (error) {
+        console.error('Error populating admin:', error);
+        postObj.author = { _id: postObj.author, fullname: 'Unknown Admin' };
       }
       return postObj;
     }));
@@ -318,33 +272,19 @@ router.get('/student', authenticateStudent, async (req, res) => {
       .populate('targetClass', 'classNumber section')
       .sort({ createdAt: -1 });
 
-    // Handle author population for each post
     const postsWithAuthors = await Promise.all(posts.map(async (post) => {
       const postObj = post.toObject();
-      if (typeof postObj.author === 'string' && postObj.author === 'default-admin') {
-        postObj.author = {
-          _id: 'default-admin',
-          fullname: 'System Administrator'
-        };
-      } else if (postObj.author && typeof postObj.author === 'object' && postObj.author._id) {
-        // This is already populated, keep as is
-      } else {
-        // This is an ObjectId, populate it
-        try {
-          const admin = await Admin.findById(postObj.author).select('fullname');
-          if (admin) {
-            postObj.author = {
-              _id: admin._id,
-              fullname: admin.fullname
-            };
-          }
-        } catch (error) {
-          console.error('Error populating admin:', error);
-          postObj.author = {
-            _id: postObj.author,
-            fullname: 'Unknown Admin'
-          };
+      if (postObj.author && typeof postObj.author === 'object' && postObj.author._id) {
+        return postObj;
+      }
+      try {
+        const admin = await Admin.findById(postObj.author).select('fullname');
+        if (admin) {
+          postObj.author = { _id: admin._id, fullname: admin.fullname };
         }
+      } catch (error) {
+        console.error('Error populating admin:', error);
+        postObj.author = { _id: postObj.author, fullname: 'Unknown Admin' };
       }
       return postObj;
     }));

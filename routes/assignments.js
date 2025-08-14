@@ -220,7 +220,11 @@ router.get('/student/assignments', auth.authenticateStudent, async (req, res) =>
     
     // Check if student has a class assigned
     if (!student.class) {
-      return res.status(404).json({ message: 'Student not assigned to any class' });
+      // Return empty assignments array instead of 404 error
+      return res.status(200).json({ 
+        assignments: [],
+        message: 'Student not assigned to any class yet'
+      });
     }
     
     // Get assignments for student's class
@@ -249,6 +253,14 @@ router.get('/class/:classId', auth.authenticateStudent, async (req, res) => {
       classType: typeof student.class
     });
     console.log('Requested classId:', classId);
+    
+    // Check if student has a class assigned
+    if (!student.class) {
+      return res.status(200).json({ 
+        assignments: [],
+        message: 'Student not assigned to any class yet'
+      });
+    }
     
     // First try to find the class by ID to get the class name
     const Class = require('../models/class');
