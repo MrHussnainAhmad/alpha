@@ -111,7 +111,7 @@ router.post("/login", async (req, res) => {
     }
 
     // If no admin found in database, check for default admin credentials
-    if (email === "admin@gmail.com" && password === "123457") {
+    if (email === "admin@gmail.com" && password === "********") {
       const token = jwt.sign(
         { id: "default-admin", role: "admin", userType: "admin" },
         process.env.JWT_SECRET,
@@ -502,17 +502,43 @@ router.put("/update-student/:id", authenticateAdmin, async (req, res) => {
     
     let student;
     
-    // If class is being updated, use save() to trigger pre-save middleware
-    if (isClassBeingUpdated) {
+    // If class is being updated, use the new ID update method
+    if (isClassBeingUpdated && updateData.class) {
       student = await Student.findById(id);
       if (!student) {
         return res.status(404).json({ message: "Student not found" });
       }
       
+      // Store old values for logging
+      const oldStudentId = student.studentId;
+      const oldSpecialStudentId = student.specialStudentId;
+      const oldClassName = student.className;
+      
       // Update the student document with new data
       Object.assign(student, updateData);
-      await student.save(); // This will trigger the pre-save middleware
+      
+      // Use the new method to update IDs when class changes
+      if (updateData.class && updateData.class !== student.class) {
+        try {
+          const updateResult = await student.updateStudentIdsForClassChange(updateData.class);
+          console.log(`✅ Student ID updated for ${student.fullname}:`, updateResult);
+        } catch (error) {
+          console.error(`❌ Error updating student IDs for ${student.fullname}:`, error);
+          // Continue with the update even if ID update fails
+        }
+      }
+      
+      await student.save();
       student = await Student.findById(id).select('-password').populate('class', 'classNumber section name');
+      
+      // Log the changes
+      console.log(`🔄 Student class updated: ${student.fullname}`);
+      console.log(`   Old studentId: ${oldStudentId} → New studentId: ${student.studentId}`);
+      if (oldSpecialStudentId !== student.specialStudentId) {
+        console.log(`   Old specialStudentId: ${oldSpecialStudentId} → New specialStudentId: ${student.specialStudentId}`);
+      }
+      console.log(`   Old className: ${oldClassName} → New className: ${student.className}`);
+      
     } else {
       // For non-class updates, use findByIdAndUpdate for efficiency
       student = await Student.findByIdAndUpdate(
@@ -1485,6 +1511,154 @@ router.put("/assign-student-id/:id", async (req, res) => {
     });
   } catch (error) {
     res.status(500).json({ message: error.message });
+  }
+});
+
+// Update student class with automatic ID update
+router.put('/students/:studentId/update-class', authenticateAdmin, async (req, res) => {
+  try {
+    const { studentId } = req.params;
+    const { newClassId, newRollNumber } = req.body;
+    
+    console.log(`Updating class for student: ${studentId}`);
+    console.log(`New class ID: ${newClassId}`);
+    console.log(`New roll number: ${newRollNumber}`);
+    
+    // Find the student
+    const student = await Student.findOne({ studentId });
+    if (!student) {
+      return res.status(404).json({ message: 'Student not found' });
+    }
+    
+    // Store old class for logging
+    const oldClassId = student.class;
+    const oldRollNumber = student.rollNumber;
+    
+    // Update class assignment
+    student.class = newClassId;
+    
+    // Update roll number if provided
+    if (newRollNumber) {
+      student.rollNumber = newRollNumber;
+    }
+    
+    // Use the safe method to update student IDs
+    const updateResult = await student.updateStudentIdsForClassChange(newClassId);
+    
+    // If roll number was also changed, update special student ID
+    if (newRollNumber && newRollNumber !== oldRollNumber) {
+      await student.updateSpecialStudentIdForRollNumberChange(newRollNumber);
+    }
+    
+    // Get updated student data
+    const updatedStudent = await Student.findById(student._id)
+      .populate('class', 'classNumber section')
+      .select('-password');
+    
+    console.log(`Successfully updated student class and IDs for ${student.fullname}`);
+    
+    res.status(200).json({
+      message: 'Student class updated successfully with ID updates',
+      student: updatedStudent,
+      updateDetails: {
+        oldClassId,
+        newClassId,
+        oldRollNumber,
+        newRollNumber,
+        idUpdates: updateResult
+      }
+    });
+    
+  } catch (error) {
+    console.error('Error updating student class:', error);
+    res.status(500).json({ 
+      message: 'Failed to update student class',
+      error: error.message 
+    });
+  }
+});
+
+// Bulk update student classes (for admin convenience)
+router.put('/students/bulk-update-classes', authenticateAdmin, async (req, res) => {
+  try {
+    const { updates } = req.body; // Array of { studentId, newClassId, newRollNumber? }
+    
+    if (!Array.isArray(updates) || updates.length === 0) {
+      return res.status(400).json({ message: 'Updates array is required and cannot be empty' });
+    }
+    
+    console.log(`Processing ${updates.length} student class updates`);
+    
+    const results = [];
+    const errors = [];
+    
+    for (const update of updates) {
+      try {
+        const { studentId, newClassId, newRollNumber } = update;
+        
+        const student = await Student.findOne({ studentId });
+        if (!student) {
+          errors.push({ studentId, error: 'Student not found' });
+          continue;
+        }
+        
+        const oldClassId = student.class;
+        const oldRollNumber = student.rollNumber;
+        
+        // Update class
+        student.class = newClassId;
+        
+        // Update roll number if provided
+        if (newRollNumber) {
+          student.rollNumber = newRollNumber;
+        }
+        
+        // Update IDs safely
+        const updateResult = await student.updateStudentIdsForClassChange(newClassId);
+        
+        if (newRollNumber && newRollNumber !== oldRollNumber) {
+          await student.updateSpecialStudentIdForRollNumberChange(newRollNumber);
+        }
+        
+        results.push({
+          studentId,
+          studentName: student.fullname,
+          success: true,
+          oldClassId,
+          newClassId,
+          oldRollNumber,
+          newRollNumber,
+          idUpdates: updateResult
+        });
+        
+      } catch (error) {
+        console.error(`Error updating student ${update.studentId}:`, error);
+        errors.push({ 
+          studentId: update.studentId, 
+          error: error.message 
+        });
+      }
+    }
+    
+    console.log(`Bulk update completed: ${results.length} successful, ${errors.length} failed`);
+    
+    res.status(200).json({
+      message: `Bulk update completed: ${results.length} successful, ${errors.length} failed`,
+      successful: results,
+      failed: errors,
+      summary: {
+        total: updates.length,
+        successful: results.length,
+        failed: errors.length
+      }
+    });
+    
+  } catch (error) {
+    console.error('Error in bulk class update:', error);
+    res.status(500).json({ 
+      message: 'Failed to process bulk class updates',
+      error: error.message 
+    });
   }
 });
 

@@ -484,9 +484,34 @@ router.post('/assign-student-class', authenticateTeacher, async (req, res) => {
       return res.status(400).json({ message: 'Student already assigned to this class and section.' });
     }
 
+    // Store old values for logging
+    const oldStudentId = student.studentId;
+    const oldSpecialStudentId = student.specialStudentId;
+    const oldClassName = student.className;
+
+    // Update class assignment
+    student.class = classId; // Set the class ObjectId reference
     student.className = className; // Assign class name
     student.section = section;     // Assign section
+    
+    // Update student IDs when class changes
+    try {
+      const updateResult = await student.updateStudentIdsForClassChange(classId);
+      console.log(`✅ Teacher assigned student ${student.fullname} to class:`, updateResult);
+    } catch (error) {
+      console.error(`❌ Error updating student IDs for ${student.fullname}:`, error);
+      // Continue with the assignment even if ID update fails
+    }
+    
     await student.save();
+    
+    // Log the changes
+    console.log(`🔄 Teacher assigned student: ${student.fullname}`);
+    console.log(`   Old studentId: ${oldStudentId} → New studentId: ${student.studentId}`);
+    if (oldSpecialStudentId !== student.specialStudentId) {
+      console.log(`   Old specialStudentId: ${oldSpecialStudentId} → New specialStudentId: ${student.specialStudentId}`);
+    }
+    console.log(`   Old className: ${oldClassName} → New className: ${student.className}`);
     
     res.status(200).json({ message: 'Student assigned to class successfully.', student });
   } catch (error) {
@@ -505,9 +530,25 @@ router.post('/unassign-student-class', authenticateTeacher, async (req, res) => 
       return res.status(404).json({ message: 'Student not found.' });
     }
 
+    // Store old values for logging
+    const oldStudentId = student.studentId;
+    const oldSpecialStudentId = student.specialStudentId;
+    const oldClassName = student.className;
+
+    // Remove class assignment
+    student.class = null; // Remove class ObjectId reference
     student.className = null; // Set className to null to unassign
     student.section = null;   // Set section to null to unassign
+    
+    // Note: When class is removed, studentId will remain as is (won't be updated)
+    // This is intentional to maintain consistency
+    
     await student.save();
+    
+    // Log the changes
+    console.log(`🔄 Teacher unassigned student: ${student.fullname}`);
+    console.log(`   Old className: ${oldClassName} → New className: ${student.className}`);
+    console.log(`   studentId remains: ${student.studentId}`);
 
     res.status(200).json({ message: 'Student unassigned from class successfully.', student });
   } catch (error) {

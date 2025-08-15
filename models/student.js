@@ -219,6 +219,105 @@ studentSchema.pre('save', async function(next) {
   }
 });
 
+// SAFE METHOD: Update student IDs when class changes
+studentSchema.methods.updateStudentIdsForClassChange = async function(newClassId) {
+  try {
+    console.log(`Updating student IDs for class change: ${this.fullname}`);
+    console.log(`Current studentId: ${this.studentId}`);
+    console.log(`Current specialStudentId: ${this.specialStudentId}`);
+    console.log(`New class ID: ${newClassId}`);
+    
+    // Store old IDs for logging
+    const oldStudentId = this.studentId;
+    const oldSpecialStudentId = this.specialStudentId;
+    
+    // Get the new class details
+    const newClass = await Class.findById(newClassId);
+    if (!newClass) {
+      throw new Error('New class not found');
+    }
+    
+    // Generate new studentId
+    const newStudentId = await generateStudentId(this.fullname, newClass.classNumber);
+    console.log(`New studentId: ${newStudentId}`);
+    
+    // Generate new specialStudentId if rollNumber exists
+    let newSpecialStudentId = null;
+    if (this.rollNumber) {
+      newSpecialStudentId = generateSpecialStudentId(this.fullname, newClass.classNumber, this.rollNumber);
+      console.log(`New specialStudentId: ${newSpecialStudentId}`);
+    }
+    
+    // Update the fields
+    this.studentId = newStudentId;
+    this.className = `${newClass.classNumber}-${newClass.section}`;
+    
+    if (newSpecialStudentId) {
+      this.specialStudentId = newSpecialStudentId;
+    }
+    
+    // Save the changes
+    await this.save();
+    
+    console.log(`Successfully updated student IDs for ${this.fullname}:`);
+    console.log(`  Old studentId: ${oldStudentId} → New studentId: ${this.studentId}`);
+    if (oldSpecialStudentId && newSpecialStudentId) {
+      console.log(`  Old specialStudentId: ${oldSpecialStudentId} → New specialStudentId: ${this.specialStudentId}`);
+    }
+    
+    return {
+      success: true,
+      oldStudentId,
+      newStudentId: this.studentId,
+      oldSpecialStudentId,
+      newSpecialStudentId: this.specialStudentId
+    };
+    
+  } catch (error) {
+    console.error('Error updating student IDs for class change:', error);
+    throw error;
+  }
+};
+
+// SAFE METHOD: Update student IDs when roll number changes
+studentSchema.methods.updateSpecialStudentIdForRollNumberChange = async function(newRollNumber) {
+  try {
+    console.log(`Updating special student ID for roll number change: ${this.fullname}`);
+    console.log(`Current specialStudentId: ${this.specialStudentId}`);
+    console.log(`New roll number: ${newRollNumber}`);
+    
+    if (!this.class) {
+      throw new Error('Student must be assigned to a class to update special student ID');
+    }
+    
+    const studentClass = await Class.findById(this.class);
+    if (!studentClass) {
+      throw new Error('Student class not found');
+    }
+    
+    const oldSpecialStudentId = this.specialStudentId;
+    const newSpecialStudentId = generateSpecialStudentId(this.fullname, studentClass.classNumber, newRollNumber);
+    
+    this.rollNumber = newRollNumber;
+    this.specialStudentId = newSpecialStudentId;
+    
+    await this.save();
+    
+    console.log(`Successfully updated special student ID for ${this.fullname}:`);
+    console.log(`  Old specialStudentId: ${oldSpecialStudentId} → New specialStudentId: ${this.specialStudentId}`);
+    
+    return {
+      success: true,
+      oldSpecialStudentId,
+      newSpecialStudentId: this.specialStudentId
+    };
+    
+  } catch (error) {
+    console.error('Error updating special student ID for roll number change:', error);
+    throw error;
+  }
+};
+
 // Method to assign special ID for fee voucher submission
 studentSchema.methods.assignSpecialIdForFeeVoucher = async function(rollNumber) {
   try {
