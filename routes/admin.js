@@ -790,14 +790,43 @@ router.get('/teachers-with-classes', authenticateAdmin, async (req, res) => {
       .select('subject class day timeSlot')
       .lean();
 
-      // Map detailedSubjects to a more consumable format for the frontend
-      const assignedSubjectsWithClasses = detailedSubjects.map(entry => ({
-        subject: entry.subject,
-        class: entry.class ? `${entry.class.classNumber}-${entry.class.section}` : 'N/A',
-        classId: entry.class ? entry.class._id : null,
-        day: entry.day,
-        timeSlot: entry.timeSlot,
-      }));
+      // Group entries by subject, class, and time slot
+      const groupedEntries = {};
+      
+      detailedSubjects.forEach(entry => {
+        const key = `${entry.subject}-${entry.class?._id}-${entry.timeSlot}`;
+        if (!groupedEntries[key]) {
+          groupedEntries[key] = {
+            subject: entry.subject,
+            class: entry.class ? `${entry.class.classNumber}-${entry.class.section}` : 'N/A',
+            classId: entry.class ? entry.class._id : null,
+            timeSlot: entry.timeSlot,
+            days: []
+          };
+        }
+        groupedEntries[key].days.push(entry.day);
+      });
+
+      // Convert grouped entries to array
+      const assignedSubjectsWithClasses = Object.values(groupedEntries).map(entry => {
+        let dayDisplay;
+        const fullDayPattern = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Saturday'];
+        const hasFullDayPattern = fullDayPattern.every(d => entry.days.includes(d));
+        const hasFriday = entry.days.includes('Friday');
+        
+        if (hasFullDayPattern) {
+          dayDisplay = 'Full day';
+        } else if (hasFriday) {
+          dayDisplay = 'Half day';
+        } else {
+          dayDisplay = entry.days.join(', ');
+        }
+        
+        return {
+          ...entry,
+          day: dayDisplay
+        };
+      });
 
       return { ...teacher, assignedSubjectsWithClasses };
     }));
@@ -859,7 +888,7 @@ router.post('/assign-subjects', authenticateAdmin, async (req, res) => {
 // Remove subjects from teacher
 router.post('/remove-subjects', authenticateAdmin, async (req, res) => {
   try {
-    const { teacherId, subjects } = req.body;
+    const { teacherId, subjects, classId, timeSlot } = req.body;
 
     if (!subjects || !Array.isArray(subjects) || subjects.length === 0) {
       return res.status(400).json({ message: 'Please provide subjects to remove.' });
@@ -870,16 +899,95 @@ router.post('/remove-subjects', authenticateAdmin, async (req, res) => {
       return res.status(404).json({ message: 'Teacher not found.' });
     }
 
-    // Remove specified subjects
+    // If classId and timeSlot are provided, remove from timetable
+    if (classId && timeSlot) {
+      const Timetable = require('../models/timetable');
+      
+      // Find and remove all timetable entries for this subject, class, and time slot
+      const entries = await Timetable.find({
+        teacher: teacherId,
+        subject: { $in: subjects },
+        class: classId,
+        timeSlot: timeSlot
+      });
+
+      if (entries.length > 0) {
+        // Hard delete all entries (completely remove from database)
+        await Timetable.deleteMany({
+          teacher: teacherId,
+          subject: { $in: subjects },
+          class: classId,
+          timeSlot: timeSlot
+        });
+        console.log(`Removed ${entries.length} timetable entries for subjects: ${subjects.join(', ')}`);
+      }
+    }
+
+    // Remove specified subjects from teacher's subjects array
     teacher.subjects = teacher.subjects.filter(subject => !subjects.includes(subject));
     await teacher.save();
     
     // Populate the teacher data for response
     await teacher.populate('classes', 'name');
 
+    // Re-fetch the teacher with updated assignedSubjectsWithClasses
+    const updatedTeacher = await Teacher.findById(teacherId)
+      .populate('classes', 'name classNumber section')
+      .lean();
+
+    // Fetch updated timetable entries for this teacher
+    const Timetable = require('../models/timetable');
+    const detailedSubjects = await Timetable.find({
+      teacher: teacherId,
+      isActive: true
+    })
+    .populate('class', 'name classNumber section')
+    .select('subject class day timeSlot')
+    .lean();
+
+    // Group entries by subject, class, and time slot
+    const groupedEntries = {};
+    
+    detailedSubjects.forEach(entry => {
+      const key = `${entry.subject}-${entry.class?._id}-${entry.timeSlot}`;
+      if (!groupedEntries[key]) {
+        groupedEntries[key] = {
+          subject: entry.subject,
+          class: entry.class ? `${entry.class.classNumber}-${entry.class.section}` : 'N/A',
+          classId: entry.class ? entry.class._id : null,
+          timeSlot: entry.timeSlot,
+          days: []
+        };
+      }
+      groupedEntries[key].days.push(entry.day);
+    });
+
+    // Convert grouped entries to array
+    const assignedSubjectsWithClasses = Object.values(groupedEntries).map(entry => {
+      let dayDisplay;
+      const fullDayPattern = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Saturday'];
+      const hasFullDayPattern = fullDayPattern.every(d => entry.days.includes(d));
+      const hasFriday = entry.days.includes('Friday');
+      
+      if (hasFullDayPattern) {
+        dayDisplay = 'Full day';
+      } else if (hasFriday) {
+        dayDisplay = 'Half day';
+      } else {
+        dayDisplay = entry.days.join(', ');
+      }
+      
+      return {
+        ...entry,
+        day: dayDisplay
+      };
+    });
+
+    const teacherWithUpdatedSubjects = { ...updatedTeacher, assignedSubjectsWithClasses };
+
     res.status(200).json({ 
       message: 'Subjects removed successfully.', 
-      teacher 
+      teacher: teacherWithUpdatedSubjects
     });
   } catch (error) {
     console.error('Error removing subjects:', error);
@@ -1041,10 +1149,10 @@ router.post('/assign-subjects-with-timetable', authenticateAdmin, async (req, re
         }
       }
       
+      // Check for time slot conflicts across all days
       for (const day of daysToProcess) {
         console.log(`14. Checking conflicts for ${day} ${timeSlot}...`);
         
-        // Check for time slot conflicts
         const existingSlot = await Timetable.findOne({
           class: classId,
           day: day,
@@ -1063,7 +1171,10 @@ router.post('/assign-subjects-with-timetable', authenticateAdmin, async (req, re
             }
           });
         }
-
+      }
+      
+      // Create timetable entries for each day
+      for (const day of daysToProcess) {
         console.log(`15. Creating timetable entry: ${subject} - ${day} ${timeSlot}`);
         
         // Create timetable entry
@@ -1077,16 +1188,67 @@ router.post('/assign-subjects-with-timetable', authenticateAdmin, async (req, re
 
         await timetableEntry.save();
         timetableEntries.push(timetableEntry);
-        console.log(`16. Timetable entry created successfully`);
+        console.log(`16. Timetable entry created successfully for ${day}`);
       }
     }
     
     // Populate the teacher data for response
     await teacher.populate('classes', 'name');
 
+    // Re-fetch the teacher with updated assignedSubjectsWithClasses
+    const updatedTeacher = await Teacher.findById(teacherId)
+      .populate('classes', 'name classNumber section')
+      .lean();
+
+    // Fetch updated timetable entries for this teacher
+    const detailedSubjects = await Timetable.find({
+      teacher: teacherId,
+      isActive: true
+    })
+    .populate('class', 'name classNumber section')
+    .select('subject class day timeSlot')
+    .lean();
+
+    // Group entries by subject, class, and time slot
+    const groupedEntries = {};
+    
+    detailedSubjects.forEach(entry => {
+      const key = `${entry.subject}-${entry.class?._id}-${entry.timeSlot}`;
+      if (!groupedEntries[key]) {
+        groupedEntries[key] = {
+          subject: entry.subject,
+          class: entry.class ? `${entry.class.classNumber}-${entry.class.section}` : 'N/A',
+          classId: entry.class ? entry.class._id : null,
+          timeSlot: entry.timeSlot,
+          days: []
+        };
+      }
+      groupedEntries[key].days.push(entry.day);
+    });
+
+    // Convert grouped entries to array
+    const assignedSubjectsWithClasses = Object.values(groupedEntries).map(entry => {
+      let dayDisplay;
+      const fullDayPattern = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Saturday'];
+      const hasFullDayPattern = fullDayPattern.every(d => entry.days.includes(d));
+      
+      if (hasFullDayPattern) {
+        dayDisplay = 'Full day';
+      } else {
+        dayDisplay = entry.days.join(', ');
+      }
+      
+      return {
+        ...entry,
+        day: dayDisplay
+      };
+    });
+
+    const teacherWithUpdatedSubjects = { ...updatedTeacher, assignedSubjectsWithClasses };
+
     res.status(200).json({ 
       message: 'Subjects assigned successfully with timetable.', 
-      teacher,
+      teacher: teacherWithUpdatedSubjects,
       timetableEntries: timetableEntries.length
     });
   } catch (error) {
@@ -1108,12 +1270,29 @@ router.get('/timetable/:classId', authenticateAdmin, async (req, res) => {
     .populate('teacher', 'fullname')
     .sort({ day: 1, timeSlot: 1 });
 
-    // Group by day
-    const groupedTimetable = {};
-    const days = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
+    // Group entries by subject, class, and time slot
+    const groupedEntries = {};
     
-    days.forEach(day => {
-      groupedTimetable[day] = timetable.filter(entry => entry.day === day);
+    timetable.forEach(entry => {
+      const key = `${entry.subject}-${entry.timeSlot}`;
+      if (!groupedEntries[key]) {
+        groupedEntries[key] = {
+          _id: entry._id, // Use the first entry's ID for deletion
+          subject: entry.subject,
+          timeSlot: entry.timeSlot,
+          teacher: entry.teacher,
+          class: entry.class,
+          days: [],
+          entries: [] // Store all individual entries for deletion
+        };
+      }
+      groupedEntries[key].days.push(entry.day);
+      groupedEntries[key].entries.push(entry);
+    });
+
+    // Convert to array and sort by time slot
+    const groupedTimetable = Object.values(groupedEntries).sort((a, b) => {
+      return a.timeSlot.localeCompare(b.timeSlot);
     });
 
     res.status(200).json({ 
@@ -1146,6 +1325,51 @@ router.delete('/timetable/:entryId', authenticateAdmin, async (req, res) => {
     });
   } catch (error) {
     console.error('Error removing timetable entry:', error);
+    res.status(500).json({ message: 'Server error' });
+  }
+});
+
+// Remove all timetable entries for a subject-class-timeslot combination
+router.delete('/timetable/subject/:subjectId', authenticateAdmin, async (req, res) => {
+  try {
+    const { subjectId } = req.params;
+    const { classId, timeSlot } = req.body;
+    const Timetable = require('../models/timetable');
+    
+    if (!classId || !timeSlot) {
+      return res.status(400).json({ 
+        message: 'Class ID and time slot are required.' 
+      });
+    }
+
+    // Find all entries for this subject, class, and time slot
+    const entries = await Timetable.find({
+      subject: subjectId,
+      class: classId,
+      timeSlot: timeSlot,
+      isActive: true
+    });
+
+    if (entries.length === 0) {
+      return res.status(404).json({ 
+        message: 'No timetable entries found for this combination.' 
+      });
+    }
+
+    // Soft delete all entries
+    const updatePromises = entries.map(entry => {
+      entry.isActive = false;
+      return entry.save();
+    });
+
+    await Promise.all(updatePromises);
+
+    res.status(200).json({ 
+      message: `${entries.length} timetable entries removed successfully.`,
+      removedCount: entries.length
+    });
+  } catch (error) {
+    console.error('Error removing timetable entries:', error);
     res.status(500).json({ message: 'Server error' });
   }
 });
